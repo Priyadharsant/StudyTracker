@@ -13,7 +13,8 @@ import {
   Trash2,
   Edit2,
   Copy,
-  RotateCcw
+  RotateCcw,
+  Share2
 } from 'lucide-react';
 import { Subject } from '../../types';
 
@@ -23,6 +24,7 @@ interface SubjectCardProps {
   onDuplicate: (id: string) => void;
   onReset: (id: string) => void;
   onDelete: (id: string) => void;
+  onShare?: (subject: Subject) => void;
 }
 
 const iconMap: Record<string, any> = {
@@ -41,7 +43,8 @@ export const SubjectCard: React.FC<SubjectCardProps> = ({
   onEdit,
   onDuplicate,
   onReset,
-  onDelete
+  onDelete,
+  onShare
 }) => {
   const [menuOpen, setMenuOpen] = React.useState(false);
   const IconComponent = iconMap[subject.icon] || BookOpen;
@@ -101,6 +104,17 @@ export const SubjectCard: React.FC<SubjectCardProps> = ({
                   <Edit2 className="w-3.5 h-3.5 text-blue-500" />
                   <span>Edit Subject</span>
                 </button>
+
+                {onShare && (
+                  <button
+                    type="button"
+                    onClick={() => { setMenuOpen(false); onShare(subject); }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                  >
+                    <Share2 className="w-3.5 h-3.5 text-indigo-500" />
+                    <span>Share Subject</span>
+                  </button>
+                )}
 
                 <button
                   type="button"

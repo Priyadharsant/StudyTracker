@@ -5,13 +5,20 @@ import {
   createSubject,
   updateSubject,
   deleteSubject,
-  duplicateSubject
+  duplicateSubject,
+  getOrGenerateShareLink,
+  toggleSubjectSharing,
+  getSharedSubject
 } from '../controllers/subjectController';
 import { getUnitsBySubject, createUnit } from '../controllers/unitController';
 import { authenticateToken } from '../middleware/auth';
 
 const router = Router();
 
+// Public route: access shared subject with shareCode (No auth required)
+router.get('/shared/:code', getSharedSubject);
+
+// Authenticated routes below
 router.use(authenticateToken);
 
 router.get('/', getSubjects);
@@ -20,6 +27,10 @@ router.get('/:id', getSubjectById);
 router.patch('/:id', updateSubject);
 router.delete('/:id', deleteSubject);
 router.post('/:id/duplicate', duplicateSubject);
+
+// Sharing endpoints
+router.get('/:id/share', getOrGenerateShareLink);
+router.post('/:id/share', toggleSubjectSharing);
 
 // Nested unit routes
 router.get('/:id/units', getUnitsBySubject);

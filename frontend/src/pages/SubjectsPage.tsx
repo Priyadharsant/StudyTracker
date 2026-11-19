@@ -4,6 +4,7 @@ import api from '../services/api';
 import { Subject } from '../types';
 import { SubjectCard } from '../components/subject/SubjectCard';
 import { JsonImportModal } from '../components/common/JsonImportModal';
+import { ShareSubjectModal } from '../components/subject/ShareSubjectModal';
 import { useToast } from '../contexts/ToastContext';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
 
@@ -15,6 +16,7 @@ export const SubjectsPage: React.FC = () => {
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [jsonImportModalOpen, setJsonImportModalOpen] = useState(false);
   const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
+  const [sharingSubject, setSharingSubject] = useState<Subject | null>(null);
 
   const [name, setName] = useState('');
   const [desc, setDesc] = useState('');
@@ -198,6 +200,7 @@ export const SubjectsPage: React.FC = () => {
               onDuplicate={handleDuplicate}
               onReset={(id) => setResetId(id)}
               onDelete={(id) => setDeleteId(id)}
+              onShare={(s) => setSharingSubject(s)}
             />
           ))}
         </div>
@@ -310,6 +313,16 @@ export const SubjectsPage: React.FC = () => {
         subjects={subjects}
         onImportSuccess={() => fetchSubjects()}
       />
+
+      {/* Share Subject Modal */}
+      {sharingSubject && (
+        <ShareSubjectModal
+          isOpen={!!sharingSubject}
+          onClose={() => setSharingSubject(null)}
+          subjectId={sharingSubject._id}
+          subjectName={sharingSubject.name}
+        />
+      )}
     </div>
   );
 };

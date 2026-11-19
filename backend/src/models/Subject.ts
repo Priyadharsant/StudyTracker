@@ -7,6 +7,8 @@ export interface ISubject extends Document {
   color: string;
   icon: string;
   order: number;
+  isPublic?: boolean;
+  shareCode?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -18,7 +20,9 @@ const SubjectSchema = new Schema<ISubject>(
     description: { type: String, default: '', trim: true },
     color: { type: String, default: '#3B82F6' },
     icon: { type: String, default: 'BookOpen' },
-    order: { type: Number, default: 0, index: true }
+    order: { type: Number, default: 0, index: true },
+    isPublic: { type: Boolean, default: false, index: true },
+    shareCode: { type: String, unique: true, sparse: true, index: true }
   },
   { timestamps: true }
 );

@@ -240,3 +240,127 @@ export const duplicateSubject = async (req: AuthenticatedRequest, res: Response)
 
   res.status(201).json({ success: true, subject: newSubject, message: 'Subject duplicated successfully' });
 };
+
+// Generate or fetch share code for a subject
+export const getOrGenerateShareLink = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const userId = req.user?.userId;
+  const id = req.params.id as string;
+
+  if (!Types.ObjectId.isValid(id)) {
+    res.status(400).json({ success: false, message: 'Invalid subject ID' });
+    return;
+  }
+
+  const subject = await Subject.findOne({ _id: id, ownerId: userId });
+  if (!subject) {
+    res.status(404).json({ success: false, message: 'Subject not found' });
+    return;
+  }
+
+  if (!subject.shareCode) {
+    const crypto = await import('crypto');
+    subject.shareCode = crypto.randomBytes(6).toString('hex');
+    subject.isPublic = true;
+    await subject.save();
+  }
+
+  res.status(200).json({
+    success: true,
+    shareCode: subject.shareCode,
+    isPublic: subject.isPublic
+  });
+};
+
+// Toggle public sharing on/off
+export const toggleSubjectSharing = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const userId = req.user?.userId;
+  const id = req.params.id as string;
+  const { isPublic } = req.body;
+
+  const subject = await Subject.findOne({ _id: id, ownerId: userId });
+  if (!subject) {
+    res.status(404).json({ success: false, message: 'Subject not found' });
+    return;
+  }
+
+  if (!subject.shareCode) {
+    const crypto = await import('crypto');
+    subject.shareCode = crypto.randomBytes(6).toString('hex');
+  }
+
+  subject.isPublic = isPublic !== undefined ? isPublic : !subject.isPublic;
+  await subject.save();
+
+  res.status(200).json({
+    success: true,
+    isPublic: subject.isPublic,
+    shareCode: subject.shareCode
+  });
+};
+
+// Public read-only view of a shared subject by shareCode (No authentication required)
+export const getSharedSubject = async (req: any, res: Response): Promise<void> => {
+  const code = req.params.code as string;
+
+  if (!code) {
+    res.status(400).json({ success: false, message: 'Share code required' });
+    return;
+  }
+
+  const subject = await Subject.findOne({ shareCode: code, isPublic: true });
+  if (!subject) {
+    res.status(404).json({ success: false, message: 'Shared subject not found or link has been disabled' });
+    return;
+  }
+
+  const units = await Unit.find({ subjectId: subject._id }).sort({ order: 1 });
+  const unitIds = units.map(u => u._id);
+
+  const topics = await Topic.find({ unitId: { $in: unitIds } }).sort({ order: 1 });
+  const topicIds = topics.map(t => t._id);
+
+  const materials = await Material.find({ topicId: { $in: topicIds } });
+  const notes = await Note.find({ topicId: { $in: topicIds } });
+
+  const materialsByTopic: Record<string, any[]> = {};
+  for (const m of materials) {
+    const tId = m.topicId.toString();
+    if (!materialsByTopic[tId]) materialsByTopic[tId] = [];
+    materialsByTopic[tId].push(m);
+  }
+
+  const notesByTopic: Record<string, any[]> = {};
+  for (const n of notes) {
+    const tId = n.topicId.toString();
+    if (!notesByTopic[tId]) notesByTopic[tId] = [];
+    notesByTopic[tId].push(n);
+  }
+
+  const unitsWithTopics = units.map(unit => {
+    const unitTopics = topics
+      .filter(t => t.unitId.toString() === unit._id.toString())
+      .map(topic => ({
+        ...topic.toObject(),
+        materials: materialsByTopic[topic._id.toString()] || [],
+        notes: notesByTopic[topic._id.toString()] || []
+      }));
+
+    return {
+      ...unit.toObject(),
+      topics: unitTopics
+    };
+  });
+
+  res.status(200).json({
+    success: true,
+    subject: {
+      _id: subject._id,
+      name: subject.name,
+      description: subject.description,
+      color: subject.color,
+      icon: subject.icon,
+      shareCode: subject.shareCode
+    },
+    units: unitsWithTopics
+  });
+};

@@ -11,6 +11,7 @@ import { SubjectDetailPage } from './pages/SubjectDetailPage';
 import { NotesPage } from './pages/NotesPage';
 import { SearchPage } from './pages/SearchPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { SharedSubjectPage } from './pages/SharedSubjectPage';
 
 // Protected Route wrapper
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -68,6 +69,9 @@ export const App: React.FC = () => {
                   </PublicRoute>
                 }
               />
+
+              {/* Public Shared Subject Route (Read-only + Local browser checklist cache) */}
+              <Route path="/share/:code" element={<SharedSubjectPage />} />
 
               {/* Protected App routes */}
               <Route

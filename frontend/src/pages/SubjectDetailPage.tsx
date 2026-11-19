@@ -26,7 +26,8 @@ import {
   Layers,
   Edit2,
   Trash2,
-  Copy
+  Copy,
+  Share2
 } from 'lucide-react';
 import api from '../services/api';
 import { Subject, Unit, Topic } from '../types';
@@ -34,6 +35,7 @@ import { UnitSection } from '../components/subject/UnitSection';
 import { StudyMaterialModal } from '../components/material/StudyMaterialModal';
 import { RevisionNotesModal } from '../components/notes/RevisionNotesModal';
 import { JsonImportModal } from '../components/common/JsonImportModal';
+import { ShareSubjectModal } from '../components/subject/ShareSubjectModal';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { useToast } from '../contexts/ToastContext';
 
@@ -74,6 +76,7 @@ export const SubjectDetailPage: React.FC = () => {
   // Reset confirmations
   const [resetSubjectConfirmOpen, setResetSubjectConfirmOpen] = useState(false);
   const [deleteSubjectConfirmOpen, setDeleteSubjectConfirmOpen] = useState(false);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
 
   // Drag and drop sensors
   const sensors = useSensors(
@@ -370,6 +373,15 @@ export const SubjectDetailPage: React.FC = () => {
         </Link>
 
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShareModalOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-xl hover:bg-blue-100 dark:hover:bg-blue-900/40 transition"
+          >
+            <Share2 className="w-3.5 h-3.5" />
+            <span>Share</span>
+          </button>
+
           {completedTopics > 0 && (
             <button
               type="button"
@@ -812,6 +824,16 @@ export const SubjectDetailPage: React.FC = () => {
         initialSubjectId={subjectId}
         onImportSuccess={() => fetchSubjectAndUnits()}
       />
+
+      {/* Share Subject Modal */}
+      {shareModalOpen && subject && (
+        <ShareSubjectModal
+          isOpen={shareModalOpen}
+          onClose={() => setShareModalOpen(false)}
+          subjectId={subject._id}
+          subjectName={subject.name}
+        />
+      )}
     </div>
   );
 };

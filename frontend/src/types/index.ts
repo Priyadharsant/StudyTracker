@@ -13,6 +13,8 @@ export interface Subject {
   color: string;
   icon: string;
   order: number;
+  isPublic?: boolean;
+  shareCode?: string;
   totalTopics: number;
   completedTopics: number;
   progressPercentage: number;
