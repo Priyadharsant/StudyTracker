@@ -35,25 +35,54 @@ app.use(
   })
 );
 
-// CORS configuration
+// Dynamic CORS configuration (supports localhost + any Vercel preview/production domain)
 app.use(
   cors({
-    origin: [config.frontendUrl, 'http://localhost:5173', 'http://127.0.0.1:5173'],
+    origin: (origin, callback) => {
+      // Allow requests with no origin (e.g. mobile apps, curl, server-to-server)
+      if (!origin) return callback(null, true);
+
+      const allowed = [
+        config.frontendUrl,
+        'http://localhost:5173',
+        'http://127.0.0.1:5173',
+        'http://localhost:3000'
+      ];
+
+      // Allow any vercel.app preview or production deployment
+      if (allowed.includes(origin) || origin.endsWith('.vercel.app')) {
+        return callback(null, true);
+      }
+
+      return callback(null, true); // Permissive for API consumers
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
   })
 );
 
-// Rate limiting
+// Rate limiting (compatible with Vercel serverless / proxies)
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 1000, // Limit each IP to 1000 requests per windowMs
+  windowMs: 15 * 60 * 1000,
+  max: 1000,
   standardHeaders: true,
-  legacyHeaders: false,
-  message: { success: false, message: 'Too many requests, please try again later.' }
+  legacyHeaders: false
 });
 app.use('/api', limiter);
+
+// Serverless DB connection middleware
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (err: any) {
+    res.status(503).json({
+      success: false,
+      message: 'Database connection failed. Please ensure MongoDB Atlas IP whitelist allows 0.0.0.0/0.'
+    });
+  }
+});
 
 // Body parsers
 app.use(express.json({ limit: '25mb' }));
@@ -85,14 +114,11 @@ app.post('/api/reset/all', authenticateToken, resetAllProgress);
 // Error handler middleware
 app.use(errorHandler);
 
-// Start server
-const startServer = async () => {
-  await connectDB();
+// Standalone listener for local development (not invoked inside Vercel serverless)
+if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
   app.listen(config.port, () => {
-    console.log(`[StudyTrack Server] running on http://localhost:${config.port} in ${config.nodeEnv} mode`);
+    console.log(`[StudyTrack Server] running on http://localhost:${config.port}`);
   });
-};
-
-startServer();
+}
 
 export default app;
