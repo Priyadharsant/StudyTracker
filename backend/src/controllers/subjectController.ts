@@ -348,14 +348,22 @@ export const getSharedSubject = async (req: any, res: Response): Promise<void> =
   const unitsWithTopics = units.map(unit => {
     const unitTopics = topics
       .filter(t => t.unitId.toString() === unit._id.toString())
-      .map(topic => ({
-        ...topic.toObject(),
-        materials: materialsByTopic[topic._id.toString()] || [],
-        notes: notesByTopic[topic._id.toString()] || []
-      }));
+      .map(topic => {
+        const tObj = topic.toObject();
+        // NEVER expose the author's checklist completion state for shared subjects
+        delete (tObj as any).completed;
+        return {
+          ...tObj,
+          materials: materialsByTopic[topic._id.toString()] || [],
+          notes: notesByTopic[topic._id.toString()] || []
+        };
+      });
 
     return {
-      ...unit.toObject(),
+      _id: unit._id,
+      name: unit.name,
+      description: unit.description,
+      order: unit.order,
       topics: unitTopics,
       materials: materialsByUnit[unit._id.toString()] || []
     };

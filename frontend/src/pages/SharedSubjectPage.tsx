@@ -104,23 +104,16 @@ export const SharedSubjectPage: React.FC = () => {
           setSubject(res.data.subject);
           setUnits(res.data.units || []);
 
-          // Initialize checked items from local cache or topic.completed defaults
+          // Read only from the viewer's local browser cache; otherwise default to completely unchecked
           try {
-            const cached = localStorage.getItem(`studytrack_shared_progress_${code}`);
+            const cached = localStorage.getItem(cacheKey);
             if (cached) {
               setCheckedTopicIds(new Set(JSON.parse(cached)));
             } else {
-              // Default to author's completed items on first load
-              const initialSet = new Set<string>();
-              (res.data.units || []).forEach((u: SharedUnit) => {
-                u.topics.forEach((t) => {
-                  if (t.completed) initialSet.add(t._id);
-                });
-              });
-              setCheckedTopicIds(initialSet);
+              setCheckedTopicIds(new Set<string>());
             }
           } catch {
-            // ignore
+            setCheckedTopicIds(new Set<string>());
           }
         } else {
           setError(res.data.message || 'Failed to load shared subject');
