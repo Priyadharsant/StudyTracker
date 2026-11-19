@@ -12,7 +12,10 @@ import {
   Trash2,
   Edit2,
   FolderInput,
-  RotateCcw
+  RotateCcw,
+  ExternalLink,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { Topic, Unit } from '../../types';
 import { ConfirmDialog } from '../common/ConfirmDialog';
@@ -44,6 +47,7 @@ export const TopicItem: React.FC<TopicItemProps> = ({
   const [moveModalOpen, setMoveModalOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
+  const [showInlineMaterials, setShowInlineMaterials] = useState(false);
 
   const {
     attributes,
@@ -135,17 +139,25 @@ export const TopicItem: React.FC<TopicItemProps> = ({
 
           {/* Action tags (Materials, Notes) */}
           <div className="flex flex-wrap items-center gap-2 mt-2">
+            {(topic.materialCount || 0) > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowInlineMaterials(!showInlineMaterials)}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 transition"
+              >
+                <Paperclip className="w-3.5 h-3.5" />
+                <span>{topic.materialCount} Materials</span>
+                {showInlineMaterials ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => onOpenMaterials(topic)}
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg border transition ${
-                (topic.materialCount || 0) > 0
-                  ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800 hover:bg-blue-100'
-                  : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white border-transparent hover:border-slate-200 dark:hover:border-slate-700'
-              }`}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white border border-transparent hover:border-slate-200 dark:hover:border-slate-700 transition"
             >
               <Paperclip className="w-3.5 h-3.5" />
-              <span>{topic.materialCount ? `${topic.materialCount} Materials` : 'Attach Materials'}</span>
+              <span>{(topic.materialCount || 0) === 0 ? 'Attach Materials' : 'Manage'}</span>
             </button>
 
             <button
@@ -161,6 +173,29 @@ export const TopicItem: React.FC<TopicItemProps> = ({
               <span>{topic.hasNotes ? 'Revision Notes' : 'Add Notes'}</span>
             </button>
           </div>
+
+          {/* Inline Attached Materials Panel */}
+          {showInlineMaterials && topic.materials && topic.materials.length > 0 && (
+            <div className="mt-3 p-2.5 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-700/60 space-y-1.5 animate-in fade-in">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block px-1">
+                Attached Study Materials:
+              </span>
+              <div className="flex flex-wrap gap-2">
+                {topic.materials.map((mat) => (
+                  <a
+                    key={mat._id}
+                    href={mat.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-700 rounded-lg text-xs font-medium text-slate-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 shadow-2xs transition"
+                  >
+                    <ExternalLink className="w-3 h-3 text-blue-500 shrink-0" />
+                    <span className="truncate max-w-[200px]">{mat.title}</span>
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* More Actions Menu */}

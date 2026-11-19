@@ -319,15 +319,22 @@ export const getSharedSubject = async (req: any, res: Response): Promise<void> =
   const topics = await Topic.find({ unitId: { $in: unitIds } }).sort({ order: 1 });
   const topicIds = topics.map(t => t._id);
 
-  const materials = await Material.find({ topicId: { $in: topicIds } });
+  const materials = await Material.find({
+    $or: [{ topicId: { $in: topicIds } }, { unitId: { $in: unitIds } }]
+  });
   const notes = await Note.find({ topicId: { $in: topicIds } });
 
   const materialsByTopic: Record<string, any[]> = {};
+  const materialsByUnit: Record<string, any[]> = {};
   for (const m of materials) {
     if (m.topicId) {
       const tId = m.topicId.toString();
       if (!materialsByTopic[tId]) materialsByTopic[tId] = [];
       materialsByTopic[tId].push(m);
+    } else if (m.unitId) {
+      const uId = m.unitId.toString();
+      if (!materialsByUnit[uId]) materialsByUnit[uId] = [];
+      materialsByUnit[uId].push(m);
     }
   }
 
@@ -349,7 +356,8 @@ export const getSharedSubject = async (req: any, res: Response): Promise<void> =
 
     return {
       ...unit.toObject(),
-      topics: unitTopics
+      topics: unitTopics,
+      materials: materialsByUnit[unit._id.toString()] || []
     };
   });
 

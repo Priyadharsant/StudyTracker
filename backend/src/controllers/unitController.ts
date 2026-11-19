@@ -28,16 +28,26 @@ export const getUnitsBySubject = async (req: AuthenticatedRequest, res: Response
   const unitIds = units.map(u => u._id);
 
   const topics = await Topic.find({ unitId: { $in: unitIds }, ownerId: userId }).sort({ order: 1, createdAt: 1 });
-
   const topicIds = topics.map(t => t._id);
-  const materials = await Material.find({ topicId: { $in: topicIds }, ownerId: userId });
+
+  // Fetch materials for topics AND directly for units
+  const materials = await Material.find({
+    $or: [{ topicId: { $in: topicIds } }, { unitId: { $in: unitIds } }],
+    ownerId: userId
+  });
   const notes = await Note.find({ topicId: { $in: topicIds }, ownerId: userId });
 
-  const materialMap: Record<string, number> = {};
+  const materialMap: Record<string, any[]> = {};
+  const unitMaterialMap: Record<string, any[]> = {};
   for (const m of materials) {
     if (m.topicId) {
       const tid = m.topicId.toString();
-      materialMap[tid] = (materialMap[tid] || 0) + 1;
+      if (!materialMap[tid]) materialMap[tid] = [];
+      materialMap[tid].push(m);
+    } else if (m.unitId) {
+      const uid = m.unitId.toString();
+      if (!unitMaterialMap[uid]) unitMaterialMap[uid] = [];
+      unitMaterialMap[uid].push(m);
     }
   }
 
@@ -56,9 +66,11 @@ export const getUnitsBySubject = async (req: AuthenticatedRequest, res: Response
   for (const t of topics) {
     const uid = t.unitId.toString();
     if (topicsByUnit[uid]) {
+      const topicMats = materialMap[t._id.toString()] || [];
       topicsByUnit[uid].push({
         ...t.toObject(),
-        materialCount: materialMap[t._id.toString()] || 0,
+        materialCount: topicMats.length,
+        materials: topicMats,
         hasNotes: !!noteMap[t._id.toString()]
       });
     }
@@ -66,11 +78,14 @@ export const getUnitsBySubject = async (req: AuthenticatedRequest, res: Response
 
   const result = units.map(u => {
     const uTopics = topicsByUnit[u._id.toString()] || [];
+    const unitMats = unitMaterialMap[u._id.toString()] || [];
     const completedTopics = uTopics.filter((t: any) => t.completed).length;
     const totalTopics = uTopics.length;
     return {
       ...u.toObject(),
       topics: uTopics,
+      materials: unitMats,
+      materialCount: unitMats.length,
       totalTopics,
       completedTopics,
       progressPercentage: totalTopics > 0 ? Math.round((completedTopics / totalTopics) * 100) : 0

@@ -30,6 +30,7 @@ export interface Unit {
   description?: string;
   order: number;
   topics: Topic[];
+  materials?: Material[];
   totalTopics: number;
   completedTopics: number;
   progressPercentage: number;
@@ -50,6 +51,7 @@ export interface Topic {
   deadline?: string | null;
   order: number;
   materialCount?: number;
+  materials?: Material[];
   hasNotes?: boolean;
   createdAt: string;
   updatedAt: string;

@@ -47,6 +47,15 @@ interface SharedUnit {
   name: string;
   description?: string;
   order: number;
+  materials?: Array<{
+    _id: string;
+    type: 'URL' | 'FILE';
+    title: string;
+    description?: string;
+    url?: string;
+    mimeType?: string;
+    fileSize?: number;
+  }>;
   topics: SharedTopic[];
 }
 
@@ -356,44 +365,98 @@ export const SharedSubjectPage: React.FC = () => {
                   {/* Unit Header */}
                   <div
                     onClick={() => toggleUnitCollapse(unit._id)}
-                    className="p-4 flex items-center justify-between cursor-pointer hover:bg-slate-50/80 dark:hover:bg-slate-800/40 select-none transition"
+                    className="p-3.5 sm:p-4 cursor-pointer hover:bg-slate-50/80 dark:hover:bg-slate-800/40 select-none transition"
                   >
-                    <div className="flex items-center gap-3">
-                      <button className="text-slate-400">
-                        {isCollapsed ? (
-                          <ChevronRight className="w-4 h-4" />
-                        ) : (
-                          <ChevronDown className="w-4 h-4" />
-                        )}
-                      </button>
-                      <div>
-                        <h3 className="font-bold text-sm text-slate-900 dark:text-white">
-                          {unit.name}
-                        </h3>
-                        {unit.description && (
-                          <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1">
-                            {unit.description}
-                          </p>
-                        )}
+                    {/* First line: collapse icon, full unit title */}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+                        <button className="text-slate-400 shrink-0">
+                          {isCollapsed ? (
+                            <ChevronRight className="w-4 h-4" />
+                          ) : (
+                            <ChevronDown className="w-4 h-4" />
+                          )}
+                        </button>
+                        <div className="min-w-0 flex-1">
+                          <h3 className="font-bold text-sm sm:text-base text-slate-900 dark:text-white break-words">
+                            {unit.name}
+                          </h3>
+                          {unit.description && (
+                            <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5">
+                              {unit.description}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Desktop progress counter */}
+                      <div className="hidden sm:flex items-center gap-3 shrink-0">
+                        <span className="text-xs font-semibold text-slate-500">
+                          {unitCompleted}/{unitTotal}
+                        </span>
+                        <div className="w-16 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-blue-600 rounded-full transition-all"
+                            style={{ width: `${unitPercent}%` }}
+                          />
+                        </div>
+                        <span className="text-xs font-medium text-slate-500 w-8 text-right">
+                          {unitPercent}%
+                        </span>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs font-semibold text-slate-500">
-                        {unitCompleted}/{unitTotal}
-                      </span>
-                      <div className="w-16 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden hidden sm:block">
-                        <div
-                          className="h-full bg-blue-600 rounded-full transition-all"
-                          style={{ width: `${unitPercent}%` }}
-                        />
+                    {/* Mobile second line: progress bar and unit material count */}
+                    <div className="flex sm:hidden items-center justify-between gap-2 pt-2 mt-2 border-t border-slate-100 dark:border-slate-800/60">
+                      <div className="flex items-center gap-2 flex-1">
+                        <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400">
+                          {unitCompleted}/{unitTotal}
+                        </span>
+                        <div className="flex-1 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden max-w-[120px]">
+                          <div
+                            className="h-full bg-blue-600 rounded-full transition-all"
+                            style={{ width: `${unitPercent}%` }}
+                          />
+                        </div>
+                        <span className="text-[11px] font-semibold text-slate-500">
+                          {unitPercent}%
+                        </span>
                       </div>
+
+                      {unit.materials && unit.materials.length > 0 && (
+                        <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded-md">
+                          {unit.materials.length} Materials
+                        </span>
+                      )}
                     </div>
                   </div>
 
                   {/* Topics List */}
                   {!isCollapsed && (
                     <div className="border-t border-slate-100 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800/60">
+                      {/* Unit Level Materials in Shared View */}
+                      {unit.materials && unit.materials.length > 0 && (
+                        <div className="p-3.5 bg-indigo-50/50 dark:bg-indigo-950/20 border-b border-indigo-100 dark:border-indigo-900/30">
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-300 block mb-2">
+                            Unit Materials ({unit.materials.length}):
+                          </span>
+                          <div className="flex flex-wrap gap-2">
+                            {unit.materials.map((mat) => (
+                              <a
+                                key={mat._id}
+                                href={mat.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 px-3 py-1 bg-white dark:bg-slate-800 border border-indigo-200 dark:border-indigo-800 rounded-lg text-xs font-semibold text-slate-800 dark:text-slate-100 hover:text-indigo-600 dark:hover:text-indigo-400 shadow-2xs transition"
+                              >
+                                <ExternalLink className="w-3.5 h-3.5 text-indigo-500" />
+                                <span>{mat.title}</span>
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
                       {unit.topics.length === 0 ? (
                         <div className="p-4 text-center text-xs text-slate-400">
                           No topics in this unit.
