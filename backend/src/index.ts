@@ -69,10 +69,16 @@ const limiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false
 });
-app.use('/api', limiter);
+app.use(limiter);
 
 // Serverless DB connection middleware
 app.use(async (req, res, next) => {
+  // If request URL was rewritten by serverless host, restore the original request path
+  const matchedPath = req.headers['x-matched-path'] as string | undefined;
+  if (matchedPath && (req.url.startsWith('/api/index.js') || req.url === '/index.js' || req.url === '/api/index.js/')) {
+    req.url = matchedPath;
+  }
+  
   try {
     await connectDB();
     next();
