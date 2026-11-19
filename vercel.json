@@ -4,15 +4,15 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "/index.js"
+      "destination": "/index.js?__route=/api/$1"
     },
     {
       "source": "/api",
-      "destination": "/index.js"
+      "destination": "/index.js?__route=/api"
     },
     {
       "source": "/",
-      "destination": "/index.js"
+      "destination": "/index.js?__route=/"
     }
   ]
 }
