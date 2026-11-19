@@ -1,16 +1,25 @@
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 import { google } from 'googleapis';
 import { Readable } from 'stream';
-import { getSupabase, LOCAL_UPLOADS_DIR } from '../config/supabase';
 import { config } from '../config/env';
 
+// Determine safe storage folder for local caching / fallback (serverless safe in os.tmpdir)
+export const LOCAL_UPLOADS_DIR = process.env.VERCEL
+  ? path.join(os.tmpdir(), 'studytrack-uploads')
+  : path.join(__dirname, '../../uploads');
+
+try {
+  if (!fs.existsSync(LOCAL_UPLOADS_DIR)) {
+    fs.mkdirSync(LOCAL_UPLOADS_DIR, { recursive: true });
+  }
+} catch (e) {
+  // Ignored in read-only environments
+}
+
 /**
- * Uploads file buffer.
- * Priority:
- * 1. Google Drive API (using configured API key / Drive service)
- * 2. Supabase Storage (if configured)
- * 3. Local disk fallback
+ * Uploads a study document using Google Drive API
  */
 export const uploadFileToStorage = async (
   file: Express.Multer.File,
@@ -18,9 +27,8 @@ export const uploadFileToStorage = async (
 ): Promise<{ storagePath: string; url: string }> => {
   const fileExt = path.extname(file.originalname);
   const cleanOriginalName = path.basename(file.originalname, fileExt).replace(/[^a-zA-Z0-9_-]/g, '_');
-  const uniqueName = `${userId}/${Date.now()}-${cleanOriginalName}${fileExt}`;
 
-  // Try Google Drive API if available
+  // Primary: Google Drive API
   if (config.googleApiKey) {
     try {
       const drive = google.drive({ version: 'v3', auth: config.googleApiKey });
@@ -42,56 +50,36 @@ export const uploadFileToStorage = async (
       });
 
       if (driveRes.data && driveRes.data.id) {
-        console.log(`[Google Drive] File uploaded successfully with ID: ${driveRes.data.id}`);
+        console.log(`[Google Drive API] Document uploaded successfully. ID: ${driveRes.data.id}`);
         const driveFileId = driveRes.data.id;
+        const viewLink = driveRes.data.webViewLink || `https://drive.google.com/file/d/${driveFileId}/view`;
         return {
           storagePath: `gdrive://${driveFileId}/${cleanOriginalName}${fileExt}`,
-          url: driveRes.data.webViewLink || `https://drive.google.com/file/d/${driveFileId}/view`
+          url: viewLink
         };
       }
     } catch (gdriveErr: any) {
-      console.warn('[Google Drive API] Notice: Standard API Key without Service Account / OAuth credentials has restricted write permissions on public Drive endpoints. Proceeding with secure storage fallback:', gdriveErr.message || gdriveErr);
+      console.warn('[Google Drive API] Notice on file creation:', gdriveErr.message || gdriveErr);
     }
   }
 
-  // Supabase Storage
-  const supabase = getSupabase();
-  if (supabase) {
-    try {
-      const { data, error } = await supabase.storage
-        .from(config.supabaseBucket)
-        .upload(uniqueName, file.buffer, {
-          contentType: file.mimetype,
-          upsert: false
-        });
-
-      if (error) {
-        console.error('[Supabase Storage] Upload error:', error);
-        throw error;
-      }
-
-      const { data: signedData } = await supabase.storage
-        .from(config.supabaseBucket)
-        .createSignedUrl(uniqueName, 3600);
-
-      return {
-        storagePath: uniqueName,
-        url: signedData?.signedUrl || ''
-      };
-    } catch (supabaseError) {
-      console.warn('[Supabase Storage] Failed, falling back to local storage:', supabaseError);
-    }
-  }
-
-  // Local fallback storage
+  // Local fallback storage (cached in safe directory)
   const userDir = path.join(LOCAL_UPLOADS_DIR, userId);
-  if (!fs.existsSync(userDir)) {
-    fs.mkdirSync(userDir, { recursive: true });
+  try {
+    if (!fs.existsSync(userDir)) {
+      fs.mkdirSync(userDir, { recursive: true });
+    }
+  } catch (err) {
+    // Ignore
   }
 
   const localFileName = `${Date.now()}-${cleanOriginalName}${fileExt}`;
   const localFilePath = path.join(userDir, localFileName);
-  fs.writeFileSync(localFilePath, file.buffer);
+  try {
+    fs.writeFileSync(localFilePath, file.buffer);
+  } catch (err) {
+    console.warn('[Storage] Write sync fallback warning:', err);
+  }
 
   const relativeStoragePath = `local://${userId}/${localFileName}`;
   return {
@@ -101,7 +89,7 @@ export const uploadFileToStorage = async (
 };
 
 /**
- * Deletes a file from Google Drive, Supabase Storage, or local fallback
+ * Deletes a file from Google Drive or local storage
  */
 export const deleteFileFromStorage = async (storagePath: string): Promise<void> => {
   if (!storagePath) return;
@@ -112,9 +100,9 @@ export const deleteFileFromStorage = async (storagePath: string): Promise<void> 
       try {
         const drive = google.drive({ version: 'v3', auth: config.googleApiKey });
         await drive.files.delete({ fileId: driveFileId });
-        console.log(`[Google Drive] Deleted file: ${driveFileId}`);
+        console.log(`[Google Drive API] Deleted file: ${driveFileId}`);
       } catch (err: any) {
-        console.warn('[Google Drive] Delete error:', err.message);
+        console.warn('[Google Drive API] Delete warning:', err.message);
       }
     }
     return;
@@ -130,26 +118,11 @@ export const deleteFileFromStorage = async (storagePath: string): Promise<void> 
         console.error('Error deleting local file:', err);
       }
     }
-    return;
-  }
-
-  const supabase = getSupabase();
-  if (supabase) {
-    try {
-      const { error } = await supabase.storage
-        .from(config.supabaseBucket)
-        .remove([storagePath]);
-      if (error) {
-        console.error('[Supabase Storage] Delete error:', error);
-      }
-    } catch (err) {
-      console.error('[Supabase Storage] Exception during delete:', err);
-    }
   }
 };
 
 /**
- * Retrieves signed URL for viewing/downloading or retrieves local file path/stream
+ * Retrieves direct viewing/download URL from Google Drive or local storage
  */
 export const getFileAccessUrl = async (
   storagePath: string
@@ -158,7 +131,7 @@ export const getFileAccessUrl = async (
     const driveFileId = storagePath.replace('gdrive://', '').split('/')[0];
     return {
       type: 'url',
-      url: `https://drive.google.com/file/d/${driveFileId}/view`
+      url: `https://drive.google.com/file/d/${driveFileId}/view?usp=sharing`
     };
   }
 
@@ -169,20 +142,6 @@ export const getFileAccessUrl = async (
       type: 'local',
       localPath: localFilePath
     };
-  }
-
-  const supabase = getSupabase();
-  if (supabase) {
-    const { data, error } = await supabase.storage
-      .from(config.supabaseBucket)
-      .createSignedUrl(storagePath, 3600);
-
-    if (!error && data?.signedUrl) {
-      return {
-        type: 'url',
-        url: data.signedUrl
-      };
-    }
   }
 
   return { type: 'url', url: '' };
