@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
   uploadFileMaterial,
+  uploadUnitFileMaterial,
   updateMaterial,
   deleteMaterial,
   viewMaterial,
@@ -15,6 +16,7 @@ const router = Router();
 router.use(authenticateToken);
 
 router.post('/upload', upload.single('file'), uploadFileMaterial);
+router.post('/upload-unit', upload.single('file'), uploadUnitFileMaterial);
 router.patch('/:id', updateMaterial);
 router.delete('/:id', deleteMaterial);
 router.get('/:id/view', viewMaterial);

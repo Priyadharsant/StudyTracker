@@ -31,6 +31,109 @@ export const getMaterialsByTopic = async (req: AuthenticatedRequest, res: Respon
   res.status(200).json({ success: true, materials });
 };
 
+// Get materials belonging directly to a Unit
+export const getMaterialsByUnit = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const userId = req.user?.userId;
+  const unitId = req.params.id as string;
+
+  if (!Types.ObjectId.isValid(unitId)) {
+    res.status(400).json({ success: false, message: 'Invalid unit ID' });
+    return;
+  }
+
+  const materials = await Material.find({
+    unitId,
+    ownerId: userId,
+    $or: [{ topicId: { $exists: false } }, { topicId: null }]
+  }).sort({ createdAt: -1 });
+
+  res.status(200).json({ success: true, materials });
+};
+
+// Create URL material for Unit
+export const createUnitUrlMaterial = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const userId = req.user?.userId;
+  const unitId = req.params.id as string;
+
+  if (!Types.ObjectId.isValid(unitId)) {
+    res.status(400).json({ success: false, message: 'Invalid unit ID' });
+    return;
+  }
+
+  const { Unit } = await import('../models/Unit');
+  const unit = await Unit.findOne({ _id: unitId, ownerId: userId });
+  if (!unit) {
+    res.status(404).json({ success: false, message: 'Unit not found' });
+    return;
+  }
+
+  const parseResult = createMaterialUrlSchema.safeParse(req.body);
+  if (!parseResult.success) {
+    res.status(400).json({ success: false, errors: parseResult.error.format() });
+    return;
+  }
+
+  const material = await Material.create({
+    ownerId: new Types.ObjectId(userId),
+    subjectId: unit.subjectId,
+    unitId: unit._id,
+    type: 'URL',
+    title: parseResult.data.title,
+    description: parseResult.data.description,
+    url: parseResult.data.url
+  });
+
+  res.status(201).json({ success: true, material });
+};
+
+// Upload document file directly for Unit
+export const uploadUnitFileMaterial = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const userId = req.user?.userId;
+  const { unitId, title, description } = req.body;
+  const file = req.file;
+
+  if (!file) {
+    res.status(400).json({ success: false, message: 'No document file uploaded' });
+    return;
+  }
+
+  if (!Types.ObjectId.isValid(unitId as string)) {
+    res.status(400).json({ success: false, message: 'Invalid unit ID' });
+    return;
+  }
+
+  const { Unit } = await import('../models/Unit');
+  const unit = await Unit.findOne({ _id: unitId, ownerId: userId });
+  if (!unit) {
+    res.status(404).json({ success: false, message: 'Unit not found' });
+    return;
+  }
+
+  try {
+    const { storagePath, url } = await uploadFileToStorage(file, userId!);
+    const materialTitle = title && title.trim().length > 0 ? title.trim() : file.originalname;
+
+    const material = await Material.create({
+      ownerId: new Types.ObjectId(userId),
+      subjectId: unit.subjectId,
+      unitId: unit._id,
+      type: 'FILE',
+      title: materialTitle,
+      description: description || '',
+      url: url,
+      storagePath,
+      originalFileName: file.originalname,
+      mimeType: file.mimetype,
+      fileSize: file.size
+    });
+
+    res.status(201).json({ success: true, material, message: 'Unit document uploaded successfully' });
+  } catch (error: any) {
+    console.error('Unit file upload error:', error);
+    res.status(500).json({ success: false, message: error.message || 'File upload failed' });
+  }
+};
+
 export const createUrlMaterial = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const userId = req.user?.userId;
   const topicId = req.params.id as string;

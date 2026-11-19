@@ -31,8 +31,10 @@ export const getTopicsByUnit = async (req: AuthenticatedRequest, res: Response):
 
   const materialMap: Record<string, number> = {};
   for (const m of materials) {
-    const tid = m.topicId.toString();
-    materialMap[tid] = (materialMap[tid] || 0) + 1;
+    if (m.topicId) {
+      const tid = m.topicId.toString();
+      materialMap[tid] = (materialMap[tid] || 0) + 1;
+    }
   }
 
   const noteMap: Record<string, boolean> = {};

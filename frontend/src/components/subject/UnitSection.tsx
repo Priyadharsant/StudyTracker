@@ -14,7 +14,8 @@ import {
   Edit2,
   Trash2,
   RotateCcw,
-  CheckCircle2
+  CheckCircle2,
+  Paperclip
 } from 'lucide-react';
 import { Unit, Topic } from '../../types';
 import { TopicItem } from '../topic/TopicItem';
@@ -36,6 +37,7 @@ interface UnitSectionProps {
   onResetTopic: (id: string) => void;
   onOpenNotes: (topic: Topic) => void;
   onOpenMaterials: (topic: Topic) => void;
+  onOpenUnitMaterials?: (unit: Unit) => void;
 }
 
 export const UnitSection: React.FC<UnitSectionProps> = ({
@@ -53,7 +55,8 @@ export const UnitSection: React.FC<UnitSectionProps> = ({
   onMoveTopic,
   onResetTopic,
   onOpenNotes,
-  onOpenMaterials
+  onOpenMaterials,
+  onOpenUnitMaterials
 }) => {
   const [collapsed, setCollapsed] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -103,8 +106,8 @@ export const UnitSection: React.FC<UnitSectionProps> = ({
         className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs overflow-hidden transition-all duration-200"
       >
         {/* Unit Header */}
-        <div className="flex items-center justify-between p-4 bg-slate-50/70 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-800 gap-3">
-          <div className="flex items-center gap-3 flex-1 min-w-0">
+        <div className="flex flex-wrap sm:flex-nowrap items-center justify-between p-3.5 sm:p-4 bg-slate-50/70 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-800 gap-2 sm:gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
             {/* Drag Handle */}
             <button
               {...attributes}
@@ -121,13 +124,13 @@ export const UnitSection: React.FC<UnitSectionProps> = ({
               onClick={() => setCollapsed(!collapsed)}
               className="p-1 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 rounded-md transition shrink-0"
             >
-              {collapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+              {collapsed ? <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" /> : <ChevronDown className="w-4 h-4 sm:w-5 sm:h-5" />}
             </button>
 
             {/* Title & Stats */}
-            <div className="truncate flex-1">
-              <div className="flex items-center gap-2">
-                <h3 className="font-bold text-base text-slate-900 dark:text-white truncate">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <h3 className="font-bold text-sm sm:text-base text-slate-900 dark:text-white break-words line-clamp-2 sm:truncate">
                   {unit.name}
                 </h3>
                 {completedTopics === totalTopics && totalTopics > 0 && (
@@ -135,7 +138,7 @@ export const UnitSection: React.FC<UnitSectionProps> = ({
                 )}
               </div>
               {unit.description && (
-                <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5">
                   {unit.description}
                 </p>
               )}
@@ -143,19 +146,32 @@ export const UnitSection: React.FC<UnitSectionProps> = ({
           </div>
 
           {/* Unit Progress Counter & Controls */}
-          <div className="flex items-center gap-3 shrink-0">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0 ml-auto sm:ml-0">
+            {/* Unit Materials Button */}
+            {onOpenUnitMaterials && (
+              <button
+                type="button"
+                onClick={() => onOpenUnitMaterials(unit)}
+                className="flex items-center gap-1 px-2 sm:px-2.5 py-1.5 text-xs font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 rounded-lg transition"
+                title="Unit Study Materials & Documents"
+              >
+                <Paperclip className="w-3.5 h-3.5" />
+                <span className="hidden md:inline">Materials</span>
+              </button>
+            )}
+
             {/* Progress indicator */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <span className="text-[11px] sm:text-xs font-semibold text-slate-700 dark:text-slate-300">
                 {completedTopics}/{totalTopics}
               </span>
-              <div className="w-16 h-2 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+              <div className="w-12 sm:w-16 h-1.5 sm:h-2 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-blue-600 transition-all duration-300"
                   style={{ width: `${progressPercent}%` }}
                 />
               </div>
-              <span className="text-xs font-medium text-slate-500 w-8 text-right">
+              <span className="text-[11px] sm:text-xs font-medium text-slate-500 w-7 sm:w-8 text-right">
                 {progressPercent}%
               </span>
             </div>
@@ -164,7 +180,7 @@ export const UnitSection: React.FC<UnitSectionProps> = ({
             <button
               type="button"
               onClick={() => onAddTopic(unit._id)}
-              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 dark:hover:bg-blue-900/60 rounded-lg transition"
+              className="flex items-center gap-1 px-2 sm:px-2.5 py-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 dark:hover:bg-blue-900/60 rounded-lg transition"
             >
               <Plus className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Topic</span>
@@ -193,6 +209,17 @@ export const UnitSection: React.FC<UnitSectionProps> = ({
                     <Edit2 className="w-3.5 h-3.5 text-blue-500" />
                     <span>Edit Unit</span>
                   </button>
+
+                  {onOpenUnitMaterials && (
+                    <button
+                      type="button"
+                      onClick={() => { setMenuOpen(false); onOpenUnitMaterials(unit); }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                    >
+                      <Paperclip className="w-3.5 h-3.5 text-indigo-500" />
+                      <span>Unit Materials & Docs</span>
+                    </button>
+                  )}
 
                   {completedTopics > 0 && (
                     <button

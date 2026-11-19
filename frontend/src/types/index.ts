@@ -33,6 +33,7 @@ export interface Unit {
   totalTopics: number;
   completedTopics: number;
   progressPercentage: number;
+  materialCount?: number;
   createdAt: string;
   updatedAt: string;
 }

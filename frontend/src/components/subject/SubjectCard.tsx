@@ -71,11 +71,11 @@ export const SubjectCard: React.FC<SubjectCardProps> = ({
             >
               <IconComponent className="w-6 h-6" />
             </div>
-            <div className="truncate">
-              <h3 className="font-bold text-base text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors truncate">
+            <div className="min-w-0 flex-1">
+              <h3 className="font-bold text-sm sm:text-base text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-2 break-words">
                 {subject.name}
               </h3>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-400 mt-0.5">
                 {total} {total === 1 ? 'Topic' : 'Topics'} total
               </p>
             </div>

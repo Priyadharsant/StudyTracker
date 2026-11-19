@@ -324,9 +324,11 @@ export const getSharedSubject = async (req: any, res: Response): Promise<void> =
 
   const materialsByTopic: Record<string, any[]> = {};
   for (const m of materials) {
-    const tId = m.topicId.toString();
-    if (!materialsByTopic[tId]) materialsByTopic[tId] = [];
-    materialsByTopic[tId].push(m);
+    if (m.topicId) {
+      const tId = m.topicId.toString();
+      if (!materialsByTopic[tId]) materialsByTopic[tId] = [];
+      materialsByTopic[tId].push(m);
+    }
   }
 
   const notesByTopic: Record<string, any[]> = {};

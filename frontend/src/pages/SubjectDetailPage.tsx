@@ -71,6 +71,7 @@ export const SubjectDetailPage: React.FC = () => {
 
   // Attached materials & notes modal state
   const [activeMaterialTopic, setActiveMaterialTopic] = useState<Topic | null>(null);
+  const [activeMaterialUnit, setActiveMaterialUnit] = useState<Unit | null>(null);
   const [activeNotesTopic, setActiveNotesTopic] = useState<Topic | null>(null);
 
   // Reset confirmations
@@ -405,28 +406,28 @@ export const SubjectDetailPage: React.FC = () => {
       </div>
 
       {/* Subject Header Banner */}
-      <div className="p-6 sm:p-8 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden">
+      <div className="p-4 sm:p-8 rounded-2xl sm:rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden">
         <div
           className="absolute top-0 left-0 right-0 h-2"
           style={{ backgroundColor: subject.color || '#3B82F6' }}
         />
 
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-          <div className="space-y-2 flex-1">
-            <div className="flex items-center gap-3">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 sm:gap-6">
+          <div className="space-y-1.5 sm:space-y-2 flex-1 min-w-0">
+            <div className="flex items-center gap-2.5">
               <span
-                className="w-4 h-4 rounded-full"
+                className="w-3.5 h-3.5 rounded-full shrink-0"
                 style={{ backgroundColor: subject.color }}
               />
-              <span className="text-xs font-bold uppercase tracking-widest text-slate-400">
+              <span className="text-[11px] sm:text-xs font-bold uppercase tracking-widest text-slate-400">
                 Subject Syllabus
               </span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+            <h1 className="text-xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight break-words">
               {subject.name}
             </h1>
             {subject.description && (
-              <p className="text-sm text-slate-600 dark:text-slate-300 max-w-2xl">
+              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 max-w-2xl">
                 {subject.description}
               </p>
             )}
@@ -587,6 +588,7 @@ export const SubjectDetailPage: React.FC = () => {
                   onResetTopic={handleResetTopic}
                   onOpenNotes={(t) => setActiveNotesTopic(t)}
                   onOpenMaterials={(t) => setActiveMaterialTopic(t)}
+                  onOpenUnitMaterials={(u) => setActiveMaterialUnit(u)}
                 />
               ))}
             </div>
@@ -780,6 +782,17 @@ export const SubjectDetailPage: React.FC = () => {
           topicId={activeMaterialTopic._id}
           topicTitle={activeMaterialTopic.title}
           onClose={() => setActiveMaterialTopic(null)}
+          onMaterialCountChange={fetchSubjectAndUnits}
+        />
+      )}
+
+      {/* Modal: Unit Study Materials & Documents */}
+      {activeMaterialUnit && (
+        <StudyMaterialModal
+          isOpen={!!activeMaterialUnit}
+          unitId={activeMaterialUnit._id}
+          unitTitle={activeMaterialUnit.name}
+          onClose={() => setActiveMaterialUnit(null)}
           onMaterialCountChange={fetchSubjectAndUnits}
         />
       )}

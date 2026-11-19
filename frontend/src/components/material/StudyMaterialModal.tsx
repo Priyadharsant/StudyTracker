@@ -19,8 +19,10 @@ import { ConfirmDialog } from '../common/ConfirmDialog';
 import { DocumentViewerModal } from '../common/DocumentViewerModal';
 
 interface StudyMaterialModalProps {
-  topicId: string;
-  topicTitle: string;
+  topicId?: string;
+  topicTitle?: string;
+  unitId?: string;
+  unitTitle?: string;
   isOpen: boolean;
   onClose: () => void;
   onMaterialCountChange?: () => void;
@@ -29,10 +31,14 @@ interface StudyMaterialModalProps {
 export const StudyMaterialModal: React.FC<StudyMaterialModalProps> = ({
   topicId,
   topicTitle,
+  unitId,
+  unitTitle,
   isOpen,
   onClose,
   onMaterialCountChange
 }) => {
+  const isUnitMode = !!unitId && !topicId;
+  const targetTitle = topicTitle || unitTitle || (isUnitMode ? 'Unit' : 'Topic');
   const { toast } = useToast();
   const [materials, setMaterials] = useState<Material[]>([]);
   const [loading, setLoading] = useState(false);
@@ -66,15 +72,16 @@ export const StudyMaterialModal: React.FC<StudyMaterialModalProps> = ({
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isOpen || !topicId) return;
+    if (!isOpen || (!topicId && !unitId)) return;
 
     fetchMaterials();
-  }, [isOpen, topicId]);
+  }, [isOpen, topicId, unitId]);
 
   const fetchMaterials = async () => {
     setLoading(true);
     try {
-      const res = await api.get(`/topics/${topicId}/materials`);
+      const endpoint = isUnitMode ? `/units/${unitId}/materials` : `/topics/${topicId}/materials`;
+      const res = await api.get(endpoint);
       if (res.data.success) {
         setMaterials(res.data.materials || []);
       }
@@ -94,7 +101,8 @@ export const StudyMaterialModal: React.FC<StudyMaterialModalProps> = ({
 
     setSubmittingUrl(true);
     try {
-      const res = await api.post(`/topics/${topicId}/materials`, {
+      const endpoint = isUnitMode ? `/units/${unitId}/materials/url` : `/topics/${topicId}/materials`;
+      const res = await api.post(endpoint, {
         title: urlTitle,
         url: urlAddress.startsWith('http') ? urlAddress : `https://${urlAddress}`,
         description: urlDesc
@@ -124,7 +132,11 @@ export const StudyMaterialModal: React.FC<StudyMaterialModalProps> = ({
     }
 
     const formData = new FormData();
-    formData.append('topicId', topicId);
+    if (isUnitMode) {
+      formData.append('unitId', unitId!);
+    } else {
+      formData.append('topicId', topicId!);
+    }
     formData.append('title', uploadTitle || selectedFile.name);
     formData.append('description', uploadDesc);
     formData.append('file', selectedFile);
@@ -133,7 +145,8 @@ export const StudyMaterialModal: React.FC<StudyMaterialModalProps> = ({
     setUploadProgress(0);
 
     try {
-      const res = await api.post('/materials/upload', formData, {
+      const uploadEndpoint = isUnitMode ? '/materials/upload-unit' : '/materials/upload';
+      const res = await api.post(uploadEndpoint, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
         onUploadProgress: (progressEvent) => {
           if (progressEvent.total) {
@@ -207,10 +220,10 @@ export const StudyMaterialModal: React.FC<StudyMaterialModalProps> = ({
           <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
             <div>
               <span className="text-xs font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">
-                Study Materials & Documents
+                {isUnitMode ? 'Unit Study Materials & Documents' : 'Topic Study Materials & Documents'}
               </span>
               <h3 className="font-semibold text-lg text-slate-900 dark:text-white truncate">
-                {topicTitle}
+                {targetTitle}
               </h3>
             </div>
             <button
