@@ -88,7 +88,15 @@ app.use(async (req, res, next) => {
 app.use(express.json({ limit: '25mb' }));
 app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 
-// Health check
+// Health check & root landing
+app.get('/', (req, res) => {
+  res.status(200).json({ status: 'ok', service: 'StudyTrack API', timestamp: new Date() });
+});
+
+app.get('/api', (req, res) => {
+  res.status(200).json({ status: 'ok', service: 'StudyTrack API', timestamp: new Date() });
+});
+
 app.get('/api/health', (req, res) => {
   res.status(200).json({ status: 'ok', service: 'StudyTrack API', timestamp: new Date() });
 });
