@@ -178,6 +178,103 @@ export const mergeUnitTopics = async (req: AuthenticatedRequest, res: Response):
   }
 };
 
+/**
+ * Insert multiple AI-generated units (e.g. from pasted multi-unit syllabus)
+ * directly into an existing subject!
+ */
+export const insertUnitsIntoSubject = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const userId = req.user?.userId;
+  const { subjectId, units } = req.body;
+
+  if (!subjectId || !Types.ObjectId.isValid(subjectId)) {
+    res.status(400).json({ success: false, message: 'Valid subjectId is required' });
+    return;
+  }
+
+  if (!Array.isArray(units) || units.length === 0) {
+    res.status(400).json({ success: false, message: 'At least one unit is required' });
+    return;
+  }
+
+  const subject = await Subject.findOne({ _id: subjectId, ownerId: userId });
+  if (!subject) {
+    res.status(404).json({ success: false, message: 'Subject not found or access denied' });
+    return;
+  }
+
+  try {
+    const maxOrderDoc = await Unit.findOne({ subjectId: subject._id, ownerId: userId }).sort({ order: -1 }).select('order');
+    let nextUnitOrder = maxOrderDoc ? maxOrderDoc.order + 1 : 0;
+
+    let totalCreatedTopics = 0;
+    const createdUnitsList = [];
+
+    for (let uIdx = 0; uIdx < units.length; uIdx++) {
+      const u = units[uIdx];
+      if (!u.name || !Array.isArray(u.topics)) continue;
+
+      const createdUnit = await Unit.create({
+        ownerId: new Types.ObjectId(userId),
+        subjectId: subject._id,
+        name: u.name,
+        description: '',
+        order: nextUnitOrder++
+      });
+
+      for (let tIdx = 0; tIdx < u.topics.length; tIdx++) {
+        const t = u.topics[tIdx];
+        if (!t.title) continue;
+
+        const createdTopic = await Topic.create({
+          ownerId: new Types.ObjectId(userId),
+          subjectId: subject._id,
+          unitId: createdUnit._id,
+          title: t.title.trim(),
+          description: t.description || '',
+          completed: false,
+          priority: 'medium',
+          order: tIdx
+        });
+
+        if (Array.isArray(t.materials) && t.materials.length > 0) {
+          const materialDocs = t.materials
+            .filter((m: any) => m.url && typeof m.url === 'string' && (m.url.startsWith('http://') || m.url.startsWith('https://')))
+            .map((m: any) => ({
+              ownerId: new Types.ObjectId(userId),
+              subjectId: subject._id,
+              unitId: createdUnit._id,
+              topicId: createdTopic._id,
+              type: 'URL' as const,
+              title: m.title || 'Reference Link',
+              description: '',
+              url: m.url
+            }));
+
+          if (materialDocs.length > 0) {
+            await Material.insertMany(materialDocs);
+          }
+        }
+        totalCreatedTopics++;
+      }
+      createdUnitsList.push(createdUnit);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Successfully added ${createdUnitsList.length} units and ${totalCreatedTopics} topics to "${subject.name}".`,
+      unitsCount: createdUnitsList.length,
+      topicsCount: totalCreatedTopics,
+      subjectId: subject._id
+    });
+  } catch (err: any) {
+    console.error('insertUnitsIntoSubject failed:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to insert units into subject: ' + (err.message || 'Server error')
+    });
+  }
+};
+
 export const smartAISearch = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const userId = req.user?.userId;
   const { query, subjectId } = req.body;

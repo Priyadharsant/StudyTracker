@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import {
   BookOpen,
   CheckCircle2,
@@ -92,6 +93,7 @@ export const SharedSubjectPage: React.FC = () => {
   // Collapsed unit state
   const [collapsedUnits, setCollapsedUnits] = useState<Record<string, boolean>>({});
   const [activeNotesTopic, setActiveNotesTopic] = useState<SharedTopic | null>(null);
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [search, setSearch] = useState('');
 
   useEffect(() => {
@@ -150,14 +152,13 @@ export const SharedSubjectPage: React.FC = () => {
 
   // Reset local cache progress
   const handleResetLocalProgress = () => {
-    if (window.confirm('Reset your local checklist progress for this shared subject?')) {
-      setCheckedTopicIds(new Set());
-      try {
-        localStorage.removeItem(cacheKey);
-      } catch {
-        // ignore
-      }
+    setCheckedTopicIds(new Set());
+    try {
+      localStorage.removeItem(cacheKey);
+    } catch {
+      // ignore
     }
+    setResetConfirmOpen(false);
   };
 
   const toggleUnitCollapse = (unitId: string) => {
@@ -253,7 +254,7 @@ export const SharedSubjectPage: React.FC = () => {
           </div>
           {completedTopics > 0 && (
             <button
-              onClick={handleResetLocalProgress}
+              onClick={() => setResetConfirmOpen(true)}
               className="shrink-0 flex items-center gap-1 text-[11px] font-medium text-slate-500 hover:text-amber-600 dark:hover:text-amber-400 transition"
               title="Reset your local checklist checkmarks"
             >
@@ -595,6 +596,15 @@ export const SharedSubjectPage: React.FC = () => {
       )}
 
       {/* Footer */}
+      <ConfirmDialog
+        isOpen={resetConfirmOpen}
+        title="Reset Local Checklist Progress?"
+        message="This will clear your local checkmarks for this shared subject in this browser."
+        confirmLabel="Reset Progress"
+        onConfirm={handleResetLocalProgress}
+        onCancel={() => setResetConfirmOpen(false)}
+      />
+
       <footer className="mt-auto py-6 border-t border-slate-200 dark:border-slate-800 text-center text-xs text-slate-400">
         <p>Powered by StudyTrack – Smart Syllabus & Checklist Tracker</p>
       </footer>

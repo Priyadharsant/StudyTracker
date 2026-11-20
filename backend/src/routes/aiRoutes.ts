@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { generateAIChecklist, mergeUnitTopics, smartAISearch } from '../controllers/aiController';
+import { generateAIChecklist, mergeUnitTopics, insertUnitsIntoSubject, smartAISearch } from '../controllers/aiController';
 import { authenticateToken } from '../middleware/auth';
 
 const router = Router();
@@ -12,6 +12,9 @@ router.post('/generate-checklist', generateAIChecklist);
 
 // Merge generated topics into an existing unit safely
 router.post('/merge-unit-topics', mergeUnitTopics);
+
+// Insert multiple AI generated units into an existing subject
+router.post('/insert-units-into-subject', insertUnitsIntoSubject);
 
 // Smart AI Search across subjects, topics, and notes
 router.post('/smart-search', smartAISearch);

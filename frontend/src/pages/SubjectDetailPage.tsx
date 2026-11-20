@@ -37,6 +37,7 @@ import { StudyMaterialModal } from '../components/material/StudyMaterialModal';
 import { RevisionNotesModal } from '../components/notes/RevisionNotesModal';
 import { JsonImportModal } from '../components/common/JsonImportModal';
 import { AiChecklistModal } from '../components/common/AiChecklistModal';
+import { CreationChoiceModal } from '../components/common/CreationChoiceModal';
 import { ShareSubjectModal } from '../components/subject/ShareSubjectModal';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { useToast } from '../contexts/ToastContext';
@@ -55,6 +56,7 @@ export const SubjectDetailPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<'all' | 'completed' | 'pending'>('all');
 
   // Modals state
+  const [choiceModalOpen, setChoiceModalOpen] = useState(false);
   const [addUnitModalOpen, setAddUnitModalOpen] = useState(false);
   const [jsonImportModalOpen, setJsonImportModalOpen] = useState(false);
   const [aiModalOpen, setAiModalOpen] = useState(false);
@@ -513,34 +515,11 @@ export const SubjectDetailPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Add Unit, AI & JSON Import Buttons */}
+        {/* Add Unit Button */}
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => setAiModalOpen(true)}
-            className="flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold transition shadow-sm"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-purple-200" />
-            <span>Generate with AI</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setJsonImportModalOpen(true)}
-            className="flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 hover:bg-purple-100 text-xs font-bold transition shadow-xs"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Import Unit via JSON</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setEditingUnit(null);
-              setUnitName('');
-              setUnitDesc('');
-              setAddUnitModalOpen(true);
-            }}
+            onClick={() => setChoiceModalOpen(true)}
             className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md transition"
           >
             <Plus className="w-4 h-4" />
@@ -839,6 +818,24 @@ export const SubjectDetailPage: React.FC = () => {
         danger
         onConfirm={handleDeleteSubject}
         onCancel={() => setDeleteSubjectConfirmOpen(false)}
+      />
+
+      {/* Add Unit Choice Modal */}
+      <CreationChoiceModal
+        isOpen={choiceModalOpen}
+        onClose={() => setChoiceModalOpen(false)}
+        title="Add to Subject"
+        subtitle={`Select how you want to add units or topics to "${subject.name}"`}
+        onSelectAi={() => setAiModalOpen(true)}
+        onSelectJson={() => setJsonImportModalOpen(true)}
+        onSelectManual={() => {
+          setEditingUnit(null);
+          setUnitName('');
+          setUnitDesc('');
+          setAddUnitModalOpen(true);
+        }}
+        manualLabel="Add Unit Manually"
+        manualDesc="Create a blank unit/chapter and manually input topics one by one."
       />
 
       {/* JSON Import Modal */}
