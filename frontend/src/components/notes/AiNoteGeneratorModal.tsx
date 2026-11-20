@@ -51,28 +51,28 @@ export const AiNoteGeneratorModal: React.FC<AiNoteGeneratorModalProps> = ({
       title: '16-Mark Detailed Answer',
       marks: '16M',
       desc: 'Intro, Architecture, In-depth Subtopics, Working Mechanisms, Formulas/Code, Advantages & Summary',
-      badgeColor: 'bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 border-purple-200 dark:border-purple-800'
+      badgeColor: 'bg-purple-100 text-purple-800 dark:bg-purple-900/60 dark:text-purple-200 border-purple-300 dark:border-purple-700'
     },
     {
       id: '8-mark',
       title: '8-Mark Concept Note',
       marks: '8M',
       desc: 'Balanced core answer with structured sub-headings, key mechanisms, and diagrams workflow',
-      badgeColor: 'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border-blue-200 dark:border-blue-800'
+      badgeColor: 'bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-200 border-blue-300 dark:border-blue-700'
     },
     {
       id: '2-mark',
       title: '2-Mark Short & Exact',
       marks: '2M',
       desc: 'Crisp 1-2 sentence definition, key formula/rule, and essential high-yield keywords',
-      badgeColor: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+      badgeColor: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200 border-emerald-300 dark:border-emerald-700'
     },
     {
       id: 'custom',
       title: 'Custom Specification',
       marks: 'Custom',
       desc: 'Follow your exact prompt criteria and custom subtopics structure',
-      badgeColor: 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+      badgeColor: 'bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200 border-amber-300 dark:border-amber-700'
     }
   ];
 
@@ -149,32 +149,32 @@ export const AiNoteGeneratorModal: React.FC<AiNoteGeneratorModalProps> = ({
         <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-5">
           {/* Step 1: Preset Selection */}
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-2 flex items-center gap-1.5">
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2.5 flex items-center gap-1.5">
               <Sliders className="w-3.5 h-3.5 text-blue-500" />
               <span>Step 1: Choose Exam Format Preset</span>
             </label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {presetsConfig.map((p) => {
                 const isSelected = preset === p.id;
                 return (
                   <div
                     key={p.id}
                     onClick={() => setPreset(p.id)}
-                    className={`cursor-pointer p-3 rounded-xl border text-left transition-all ${
+                    className={`cursor-pointer p-3.5 rounded-xl border text-left transition-all ${
                       isSelected
-                        ? 'border-blue-500 bg-blue-50/70 dark:bg-blue-950/30 ring-2 ring-blue-500/20 shadow-xs'
-                        : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-850'
+                        ? 'border-blue-500 bg-blue-50/80 dark:bg-blue-950/40 ring-2 ring-blue-500/30 shadow-xs'
+                        : 'border-slate-300 dark:border-slate-800 hover:border-slate-400 dark:hover:border-slate-700 bg-slate-50/60 dark:bg-slate-900/80 hover:bg-white dark:hover:bg-slate-800'
                     }`}
                   >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="font-semibold text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className={`font-semibold text-sm ${isSelected ? 'text-blue-700 dark:text-blue-400' : 'text-slate-900 dark:text-slate-100'}`}>
                         {p.title}
                       </span>
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${p.badgeColor}`}>
                         {p.marks}
                       </span>
                     </div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed">
+                    <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-2 leading-relaxed">
                       {p.desc}
                     </p>
                   </div>
@@ -185,37 +185,37 @@ export const AiNoteGeneratorModal: React.FC<AiNoteGeneratorModalProps> = ({
 
           {/* Step 2: Custom Specifications & Subtopics */}
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1.5 flex items-center justify-between">
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5 flex flex-wrap items-center justify-between gap-1">
               <span className="flex items-center gap-1.5">
                 <HelpCircle className="w-3.5 h-3.5 text-purple-500" />
                 <span>Step 2: Specific Subtopics or Instructions (Optional)</span>
               </span>
-              <span className="text-[11px] font-normal text-slate-400 lowercase">e.g. mention sliding window types, go-back-n</span>
+              <span className="text-[11px] font-normal text-slate-500 dark:text-slate-400 lowercase">e.g. mention sliding window types, go-back-n</span>
             </label>
             <input
               type="text"
               value={specification}
               onChange={(e) => setSpecification(e.target.value)}
               placeholder="e.g. Include specific subtopics: Frame format, Bit stuffing, Flow control & 16-mark university questions"
-              className="w-full px-3.5 py-2.5 text-sm bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white placeholder-slate-400"
+              className="w-full px-3.5 py-2.5 text-sm bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500"
             />
           </div>
 
           {/* Step 3: Raw Notes Text / Noise Cleaner */}
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1.5 flex items-center justify-between">
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5 flex flex-wrap items-center justify-between gap-1">
               <span className="flex items-center gap-1.5">
                 <FileText className="w-3.5 h-3.5 text-emerald-500" />
                 <span>Step 3: Paste Raw Notes / ChatGPT Output (Noise Filter)</span>
               </span>
-              <span className="text-[11px] font-normal text-slate-400 lowercase">optional - leave empty to generate from scratch</span>
+              <span className="text-[11px] font-normal text-slate-500 dark:text-slate-400 lowercase">optional - leave empty to generate from scratch</span>
             </label>
             <textarea
               rows={4}
               value={sourceText}
               onChange={(e) => setSourceText(e.target.value)}
               placeholder="Paste messy ChatGPT chat, raw lecture notes, or web articles here... AI will strip conversational fluff, extract key technical points, and organize them into the selected format."
-              className="w-full px-3.5 py-2.5 text-xs sm:text-sm bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white placeholder-slate-400 font-mono"
+              className="w-full px-3.5 py-2.5 text-xs sm:text-sm bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 font-mono"
             />
           </div>
 

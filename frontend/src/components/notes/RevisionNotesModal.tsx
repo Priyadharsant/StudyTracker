@@ -149,52 +149,52 @@ export const RevisionNotesModal: React.FC<RevisionNotesModalProps> = ({
   return (
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/60 backdrop-blur-xs animate-in fade-in">
-        <div className="w-full max-w-4xl h-[85vh] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+        <div className="w-full max-w-4xl h-[92vh] sm:h-[85vh] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden">
           {/* Header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs uppercase tracking-wider font-bold text-blue-600 dark:text-blue-400">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 gap-2.5">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[11px] uppercase tracking-wider font-bold text-blue-600 dark:text-blue-400">
                   Revision Notes
                 </span>
                 {lastSaved && (
-                  <span className="text-xs text-slate-400 flex items-center gap-1">
+                  <span className="text-[11px] text-slate-400 flex items-center gap-1">
                     <Check className="w-3 h-3 text-emerald-500" /> Saved {lastSaved}
                   </span>
                 )}
                 {saving && (
-                  <span className="text-xs text-amber-500 animate-pulse">Auto-saving...</span>
+                  <span className="text-[11px] text-amber-500 animate-pulse">Auto-saving...</span>
                 )}
               </div>
-              <h3 className="font-semibold text-lg text-slate-900 dark:text-white truncate">
+              <h3 className="font-semibold text-base sm:text-lg text-slate-900 dark:text-white truncate">
                 {topicTitle}
               </h3>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2 self-end sm:self-auto shrink-0">
               <button
                 type="button"
                 onClick={() => setAiGeneratorOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-lg text-sm font-medium transition shadow-xs"
+                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-lg text-xs sm:text-sm font-medium transition shadow-xs"
                 title="Generate or polish notes with AI"
               >
-                <Sparkles className="w-4 h-4 text-amber-300" />
-                <span className="hidden sm:inline">AI Notes</span>
+                <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-300" />
+                <span>AI Notes</span>
               </button>
               <button
                 type="button"
                 onClick={() => saveNote()}
                 disabled={saving}
-                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition shadow-xs disabled:opacity-50"
+                className="flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs sm:text-sm font-medium transition shadow-xs disabled:opacity-50"
               >
-                <Save className="w-4 h-4" />
+                <Save className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 <span>Save</span>
               </button>
               {noteId && (
                 <button
                   type="button"
                   onClick={() => setDeleteConfirmOpen(true)}
-                  className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition"
+                  className="p-1.5 sm:p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition"
                   title="Clear note"
                 >
                   <Trash2 className="w-4 h-4" />
@@ -202,7 +202,7 @@ export const RevisionNotesModal: React.FC<RevisionNotesModalProps> = ({
               )}
               <button
                 onClick={onClose}
-                className="p-2 text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition"
+                className="p-1.5 sm:p-2 text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition"
               >
                 <X className="w-5 h-5" />
               </button>
