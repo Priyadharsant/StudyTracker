@@ -4,6 +4,7 @@ import api from '../services/api';
 import { Subject } from '../types';
 import { SubjectCard } from '../components/subject/SubjectCard';
 import { JsonImportModal } from '../components/common/JsonImportModal';
+import { AiChecklistModal } from '../components/common/AiChecklistModal';
 import { ShareSubjectModal } from '../components/subject/ShareSubjectModal';
 import { useToast } from '../contexts/ToastContext';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
@@ -15,6 +16,7 @@ export const SubjectsPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [jsonImportModalOpen, setJsonImportModalOpen] = useState(false);
+  const [aiModalOpen, setAiModalOpen] = useState(false);
   const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
   const [sharingSubject, setSharingSubject] = useState<Subject | null>(null);
 
@@ -144,10 +146,18 @@ export const SubjectsPage: React.FC = () => {
 
           <button
             type="button"
+            onClick={() => setAiModalOpen(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm transition"
+          >
+            <Sparkles className="w-4 h-4 text-purple-200" />
+            <span>Create with AI</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setJsonImportModalOpen(true)}
             className="flex items-center gap-1.5 px-3.5 py-2 bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 hover:bg-purple-100 rounded-xl text-xs font-bold shadow-xs transition"
           >
-            <Sparkles className="w-4 h-4 text-purple-600 dark:text-purple-400" />
             <span>Create by JSON</span>
           </button>
 
@@ -163,7 +173,7 @@ export const SubjectsPage: React.FC = () => {
             className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md transition"
           >
             <Plus className="w-4 h-4" />
-            <span>Create Subject</span>
+            <span>Create Manually</span>
           </button>
         </div>
       </div>
@@ -312,6 +322,14 @@ export const SubjectsPage: React.FC = () => {
         onClose={() => setJsonImportModalOpen(false)}
         subjects={subjects}
         onImportSuccess={() => fetchSubjects()}
+      />
+
+      {/* AI Checklist Modal */}
+      <AiChecklistModal
+        isOpen={aiModalOpen}
+        onClose={() => setAiModalOpen(false)}
+        subjects={subjects}
+        onSuccess={() => fetchSubjects()}
       />
 
       {/* Share Subject Modal */}

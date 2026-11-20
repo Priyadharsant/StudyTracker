@@ -1,0 +1,417 @@
+import { Groq } from 'groq-sdk';
+import { config } from '../config/env';
+import {
+  fullSubjectImportSchema,
+  singleUnitImportSchema
+} from '../validators/importValidators';
+import { z } from 'zod';
+
+// Initialize Groq client lazily
+let groqClientInstance: Groq | null = null;
+function getGroqClient(): Groq {
+  const apiKey = config.groqApiKey;
+  if (!apiKey) {
+    throw new Error('GROQ_API_KEY is not configured in backend environment variables.');
+  }
+  if (!groqClientInstance) {
+    groqClientInstance = new Groq({ apiKey });
+  }
+  return groqClientInstance;
+}
+
+export interface GenerateChecklistParams {
+  mode: 'subject' | 'unit';
+  content: string;
+  subjectName?: string;
+  unitName?: string;
+}
+
+// In-memory simple cache for deduplicating repeated identical requests
+interface CacheEntry {
+  data: any;
+  timestamp: number;
+}
+const cache = new Map<string, CacheEntry>();
+const CACHE_TTL_MS = 1000 * 60 * 30; // 30 minutes
+
+function getCacheKey(params: GenerateChecklistParams): string {
+  return `${params.mode}:${params.subjectName || ''}:${params.unitName || ''}:${params.content.trim()}`;
+}
+
+// In-memory rate limiting map per user
+interface RateLimitTracker {
+  count: number;
+  resetAt: number;
+}
+const userLimits = new Map<string, RateLimitTracker>();
+const MAX_REQUESTS_PER_WINDOW = 15; // 15 requests per 15 minutes per user
+const WINDOW_MS = 15 * 60 * 1000;
+
+export function checkUserRateLimit(userId: string): { allowed: boolean; remaining: number; resetInSec: number } {
+  const now = Date.now();
+  let tracker = userLimits.get(userId);
+
+  if (!tracker || now > tracker.resetAt) {
+    tracker = { count: 0, resetAt: now + WINDOW_MS };
+    userLimits.set(userId, tracker);
+  }
+
+  const remaining = Math.max(0, MAX_REQUESTS_PER_WINDOW - tracker.count);
+  const resetInSec = Math.ceil((tracker.resetAt - now) / 1000);
+
+  if (tracker.count >= MAX_REQUESTS_PER_WINDOW) {
+    return { allowed: false, remaining: 0, resetInSec };
+  }
+
+  tracker.count++;
+  return { allowed: true, remaining: remaining - 1, resetInSec };
+}
+
+export async function generateChecklistWithGroq(params: GenerateChecklistParams): Promise<any> {
+  const { mode, content, subjectName, unitName } = params;
+
+  // Check cache
+  const cacheKey = getCacheKey(params);
+  const cached = cache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+    return cached.data;
+  }
+
+  const groq = getGroqClient();
+
+  // Primary model and fallback cascade (3 fallback models when rate limits/quotas or issues occur)
+  const primaryModel = config.groqModel || 'openai/gpt-oss-120b';
+  const fallbackModels = config.groqFallbackModels && config.groqFallbackModels.length > 0
+    ? config.groqFallbackModels
+    : ['openai/gpt-oss-20b', 'openai/gpt-oss-safeguard-20b', 'qwen/qwen3.8-27b'];
+
+  const modelQueue = [primaryModel, ...fallbackModels.filter(m => m !== primaryModel)];
+
+  let systemPrompt = '';
+  let userPrompt = '';
+
+  if (mode === 'subject') {
+    systemPrompt = `You are a curriculum and syllabus parser for StudyTrack.
+Your job is to parse the user's syllabus or study notes into a structured JSON checklist.
+You must return ONLY a single valid JSON object, without markdown formatting or code fences.
+
+JSON Schema to follow:
+{
+  "type": "subject",
+  "subject": {
+    "name": "Subject Name",
+    "description": "Concise subject overview",
+    "color": "#3B82F6",
+    "icon": "BookOpen"
+  },
+  "units": [
+    {
+      "name": "Unit 1: Unit Name",
+      "topics": [
+        {
+          "title": "Topic Title",
+          "description": "Concise summary or learning goals",
+          "materials": []
+        }
+      ]
+    }
+  ]
+}
+
+STRICT INSTRUCTIONS:
+1. "type" MUST be exactly "subject".
+2. "subject.name": Use the subject name if provided by the user or extract it accurately from the text.
+3. "subject.description": Brief 1-2 sentence description.
+4. "subject.color": Pick an appropriate hex color (e.g. #3B82F6, #10B981, #8B5CF6, #F59E0B, #EF4444, #EC4899, #06B6D4).
+5. "subject.icon": One of ["BookOpen", "Globe", "Code", "Database", "Cpu", "Layers", "Folder"].
+6. "units": Must preserve the exact original unit order from the input syllabus.
+7. "topics": Extract all topics and subtopics. Do not omit supplied topics. Preserve original sequence.
+8. "materials": MUST ALWAYS BE AN EMPTY ARRAY [] FOR EVERY TOPIC. Do not add, parse, or fill any materials or URLs. The user will fill materials manually.
+9. Return strictly pure JSON without markdown codeblocks or commentary.`;
+
+    userPrompt = `Please parse the following syllabus into the StudyTrack subject checklist schema in JSON format:
+${subjectName ? `Subject Title Override: ${subjectName}\n` : ''}
+--- SYLLABUS CONTENT ---
+${content}`;
+  } else {
+    // Mode: unit
+    systemPrompt = `You are a curriculum and syllabus parser for StudyTrack.
+Your job is to parse unit syllabus or questions into a structured single-unit JSON checklist.
+You must return ONLY a single valid JSON object, without markdown formatting or code fences.
+
+JSON Schema to follow:
+{
+  "type": "unit",
+  "unit": {
+    "name": "Unit Name",
+    "topics": [
+      {
+        "title": "Topic Title",
+        "description": "Concise summary or learning goals",
+        "materials": []
+      }
+    ]
+  }
+}
+
+STRICT INSTRUCTIONS:
+1. "type" MUST be exactly "unit".
+2. "unit.name": Use the unit name provided by the user or extract it from the unit content.
+3. "topics": Extract all topics, questions, and concepts for this unit. Do not omit items. Preserve original sequence.
+4. "materials": MUST ALWAYS BE AN EMPTY ARRAY [] FOR EVERY TOPIC. Do not add, parse, or fill any materials or URLs. The user will fill materials manually.
+5. Return strictly pure JSON without markdown codeblocks or commentary.`;
+
+    userPrompt = `Please parse the following content into a single unit checklist in JSON format:
+${subjectName ? `Subject Name: ${subjectName}\n` : ''}
+${unitName ? `Target Unit Name: ${unitName}\n` : ''}
+--- UNIT CONTENT ---
+${content}`;
+  }
+
+  let completionText = '';
+  let lastError: any = null;
+  let successfulModel = '';
+
+  // Attempt generation with primary model, cascading to fallback models if rate limits / errors occur
+  for (let idx = 0; idx < modelQueue.length; idx++) {
+    const currentModel = modelQueue[idx];
+    try {
+      console.log(`[AI Generation] Attempting generation with model: ${currentModel} (attempt ${idx + 1}/${modelQueue.length})`);
+      const response = await groq.chat.completions.create({
+        model: currentModel,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.2
+      });
+
+      completionText = response.choices[0]?.message?.content || '';
+      if (completionText.trim()) {
+        successfulModel = currentModel;
+        console.log(`[AI Generation] Success with model: ${currentModel}`);
+        break; // Successfully got a response
+      }
+    } catch (apiErr: any) {
+      lastError = apiErr;
+      const isRateOrLimit =
+        apiErr?.status === 429 ||
+        apiErr?.message?.includes('rate limit') ||
+        apiErr?.message?.includes('quota') ||
+        apiErr?.status === 403 ||
+        apiErr?.message?.includes('blocked at the project level') ||
+        apiErr?.status === 503 ||
+        apiErr?.status === 500;
+
+      console.warn(`[AI Generation] Model ${currentModel} failed (${apiErr?.status || 'unknown'}): ${apiErr?.message}. Checking fallback options...`);
+
+      // If we have fallback models left and the error is rate limit, quota, server error or model unavailable, try next fallback
+      if (idx < modelQueue.length - 1 && isRateOrLimit) {
+        console.log(`[AI Generation] Falling back to model: ${modelQueue[idx + 1]}`);
+        continue;
+      } else if (!isRateOrLimit) {
+        // Break early if client error like invalid API key
+        break;
+      }
+    }
+  }
+
+  if (!completionText.trim()) {
+    console.error('All models failed. Last error:', lastError?.message || lastError);
+    if (lastError?.status === 429 || lastError?.message?.includes('rate limit') || lastError?.message?.includes('quota')) {
+      const error = new Error('Groq AI rate limit or free-plan quota exceeded across models. Please wait a moment and try again.');
+      (error as any).statusCode = 429;
+      throw error;
+    }
+    if (lastError?.status === 403 || lastError?.message?.includes('blocked at the project level')) {
+      const error = new Error(`The requested models are restricted in your Groq project. Please enable them in your Groq dashboard at https://console.groq.com/settings/project/limits.`);
+      (error as any).statusCode = 403;
+      throw error;
+    }
+    if (lastError?.status === 401 || lastError?.message?.includes('API key')) {
+      const error = new Error('Invalid or unconfigured Groq API key.');
+      (error as any).statusCode = 500;
+      throw error;
+    }
+    const error = new Error(lastError?.message || 'Failed to generate checklist with Groq AI service.');
+    (error as any).statusCode = lastError?.status || 502;
+    throw error;
+  }
+
+  // Parse JSON safely
+  let rawJson: any;
+  try {
+    const cleaned = completionText.trim().replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '');
+    rawJson = JSON.parse(cleaned);
+  } catch (parseErr) {
+    const error = new Error('AI returned non-JSON or malformed output. Please try regenerating.');
+    (error as any).statusCode = 502;
+    throw error;
+  }
+
+  // Force materials to be empty array on every topic per user requirement
+  if (rawJson && Array.isArray(rawJson.units)) {
+    rawJson.units.forEach((u: any) => {
+      if (Array.isArray(u.topics)) {
+        u.topics.forEach((t: any) => {
+          t.materials = [];
+        });
+      }
+    });
+  } else if (rawJson && rawJson.unit && Array.isArray(rawJson.unit.topics)) {
+    rawJson.unit.topics.forEach((t: any) => {
+      t.materials = [];
+    });
+  }
+
+  // Validate with Zod based on mode
+  if (mode === 'subject') {
+    const validation = fullSubjectImportSchema.safeParse(rawJson);
+    if (!validation.success) {
+      console.warn('AI validation issues:', validation.error.issues);
+      if (rawJson.subject && rawJson.units && rawJson.type !== 'subject') {
+        rawJson.type = 'subject';
+      }
+      const retryValidation = fullSubjectImportSchema.safeParse(rawJson);
+      if (!retryValidation.success) {
+        const error = new Error('AI generated content does not match the required Subject schema: ' + retryValidation.error.issues.map(i => i.message).join(', '));
+        (error as any).statusCode = 422;
+        (error as any).validationErrors = retryValidation.error.issues;
+        throw error;
+      }
+      rawJson = retryValidation.data;
+    } else {
+      rawJson = validation.data;
+    }
+  } else {
+    // Mode: unit
+    const validation = singleUnitImportSchema.safeParse(rawJson);
+    if (!validation.success) {
+      console.warn('AI unit validation issues:', validation.error.issues);
+      if (rawJson.unit && rawJson.type !== 'unit') {
+        rawJson.type = 'unit';
+      }
+      const retryValidation = singleUnitImportSchema.safeParse(rawJson);
+      if (!retryValidation.success) {
+        const error = new Error('AI generated content does not match the required Unit schema: ' + retryValidation.error.issues.map(i => i.message).join(', '));
+        (error as any).statusCode = 422;
+        (error as any).validationErrors = retryValidation.error.issues;
+        throw error;
+      }
+      rawJson = retryValidation.data;
+    } else {
+      rawJson = validation.data;
+    }
+  }
+
+  // Cache successful result
+  cache.set(cacheKey, { data: rawJson, timestamp: Date.now() });
+
+  if (cache.size > 200) {
+    const oldestKey = cache.keys().next().value;
+    if (oldestKey) cache.delete(oldestKey);
+  }
+
+  return rawJson;
+}
+
+export interface SmartSearchParams {
+  query: string;
+  items: Array<{
+    id: string;
+    type: 'topic' | 'subject' | 'unit' | 'note';
+    title: string;
+    description?: string;
+    subjectName?: string;
+    unitName?: string;
+    completed?: boolean;
+  }>;
+}
+
+export async function smartSearchWithGroq(params: SmartSearchParams): Promise<{
+  aiSummary: string;
+  relevantItemIds: string[];
+  suggestedAction?: string;
+}> {
+  const { query, items } = params;
+  if (!items || items.length === 0) {
+    return {
+      aiSummary: `No matching study items found for "${query}". Try searching for other concepts or topics.`,
+      relevantItemIds: []
+    };
+  }
+
+  const groq = getGroqClient();
+  const primaryModel = config.groqModel || 'openai/gpt-oss-120b';
+  const fallbackModels = config.groqFallbackModels && config.groqFallbackModels.length > 0
+    ? config.groqFallbackModels
+    : ['openai/gpt-oss-20b', 'openai/gpt-oss-safeguard-20b', 'qwen/qwen3.8-27b'];
+  const modelQueue = [primaryModel, ...fallbackModels.filter(m => m !== primaryModel)];
+
+  const contextItems = items.slice(0, 40).map(item => ({
+    id: item.id,
+    type: item.type,
+    title: item.title,
+    context: `${item.subjectName ? `Subject: ${item.subjectName}` : ''}${item.unitName ? `, Unit: ${item.unitName}` : ''}${item.description ? ` - ${item.description.slice(0, 150)}` : ''}`,
+    status: item.completed ? 'completed' : 'pending'
+  }));
+
+  const systemPrompt = `You are a smart semantic search assistant for StudyTrack.
+Analyze the user's natural query and rank the most semantically relevant items from their syllabus, topics, and revision notes.
+Return ONLY valid JSON matching this schema:
+{
+  "aiSummary": "1-2 sentence direct insight answering the user's question or connecting the search query to their study materials",
+  "relevantItemIds": ["id1", "id2"],
+  "suggestedAction": "brief tip on what topic to study or revise next"
+}
+Only choose IDs that exist in the provided candidates list. Order relevantItemIds by highest semantic relevance.`;
+
+  const userPrompt = `User Search Query: "${query}"
+
+Available Study Materials Candidates (JSON):
+${JSON.stringify(contextItems, null, 2)}`;
+
+  let completionText = '';
+  for (let idx = 0; idx < modelQueue.length; idx++) {
+    const currentModel = modelQueue[idx];
+    try {
+      const response = await groq.chat.completions.create({
+        model: currentModel,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.2
+      });
+      completionText = response.choices[0]?.message?.content || '';
+      if (completionText.trim()) break;
+    } catch (err: any) {
+      console.warn(`[Smart Search] Model ${currentModel} failed: ${err.message}. Trying next fallback...`);
+    }
+  }
+
+  if (!completionText.trim()) {
+    return {
+      aiSummary: `Showing direct keyword matches for "${query}".`,
+      relevantItemIds: items.slice(0, 10).map(i => i.id)
+    };
+  }
+
+  try {
+    const cleaned = completionText.trim().replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '');
+    const parsed = JSON.parse(cleaned);
+    return {
+      aiSummary: parsed.aiSummary || `Search analysis for "${query}"`,
+      relevantItemIds: Array.isArray(parsed.relevantItemIds) ? parsed.relevantItemIds : items.map(i => i.id),
+      suggestedAction: parsed.suggestedAction || undefined
+    };
+  } catch {
+    return {
+      aiSummary: `Showing matches for "${query}".`,
+      relevantItemIds: items.slice(0, 10).map(i => i.id)
+    };
+  }
+}
+

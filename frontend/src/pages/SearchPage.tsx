@@ -10,7 +10,10 @@ import {
   Link as LinkIcon,
   ExternalLink,
   Eye,
-  Filter
+  Filter,
+  Sparkles,
+  Bot,
+  Loader2
 } from 'lucide-react';
 import api from '../services/api';
 import { Subject, Unit, Topic, Material, Note } from '../types';
@@ -24,6 +27,9 @@ export const SearchPage: React.FC = () => {
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>('');
 
   const [subjectsList, setSubjectsList] = useState<Subject[]>([]);
+  const [smartSearchActive, setSmartSearchActive] = useState(false);
+  const [aiInsight, setAiInsight] = useState<{ summary?: string; suggestedAction?: string } | null>(null);
+  const [aiSearching, setAiSearching] = useState(false);
   const [results, setResults] = useState<{
     subjects: Subject[];
     units: Unit[];
@@ -58,10 +64,41 @@ export const SearchPage: React.FC = () => {
     return () => clearTimeout(handler);
   }, [query]);
 
+  const handleSmartAISearch = async () => {
+    if (!query.trim()) return;
+    setAiSearching(true);
+    setSmartSearchActive(true);
+    try {
+      const res = await api.post('/ai/smart-search', {
+        query: query.trim(),
+        subjectId: selectedSubjectId || undefined
+      });
+      if (res.data.success) {
+        setResults({
+          subjects: res.data.subjects || [],
+          units: res.data.units || [],
+          topics: res.data.topics || [],
+          notes: res.data.notes || [],
+          materials: []
+        });
+        setAiInsight({
+          summary: res.data.aiSummary,
+          suggestedAction: res.data.suggestedAction
+        });
+      }
+    } catch (err: any) {
+      console.error('Smart AI Search error:', err);
+    } finally {
+      setAiSearching(false);
+    }
+  };
+
   // Execute global search
   useEffect(() => {
+    if (smartSearchActive) return;
     if (!debouncedQuery.trim() && statusFilter === 'all' && !selectedSubjectId) {
       setResults({ subjects: [], units: [], topics: [], notes: [], materials: [] });
+      setAiInsight(null);
       return;
     }
 
@@ -113,15 +150,46 @@ export const SearchPage: React.FC = () => {
 
       {/* Search and Filters Bar */}
       <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-3">
-        <div className="relative">
-          <SearchIcon className="w-5 h-5 text-slate-400 absolute left-4 top-3" />
-          <input
-            type="text"
-            placeholder="Type keyword to search anything (e.g. 'Recursion', 'Newton', 'Slides')..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className="w-full pl-12 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-hidden"
-          />
+        <div className="relative flex items-center gap-2">
+          <div className="relative flex-1">
+            <SearchIcon className="w-5 h-5 text-slate-400 absolute left-4 top-3" />
+            <input
+              type="text"
+              placeholder="Search concepts, topics or questions (e.g. 'CAP Theorem', 'Recursion')..."
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setSmartSearchActive(false);
+                setAiInsight(null);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && e.ctrlKey) {
+                  handleSmartAISearch();
+                }
+              }}
+              className="w-full pl-12 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-hidden"
+            />
+          </div>
+
+          <button
+            type="button"
+            onClick={handleSmartAISearch}
+            disabled={aiSearching || !query.trim()}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-500/20 disabled:opacity-50 transition shrink-0"
+            title="Use AI to find semantically relevant topics and curriculum insights"
+          >
+            {aiSearching ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Thinking...</span>
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-4 h-4 text-purple-200" />
+                <span>Smart AI Search</span>
+              </>
+            )}
+          </button>
         </div>
 
         <div className="flex flex-wrap items-center gap-3 pt-1">
@@ -170,9 +238,29 @@ export const SearchPage: React.FC = () => {
       </div>
 
       {/* Results View */}
-      {loading ? (
+      {aiInsight && (
+        <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-indigo-50/80 to-purple-50/80 dark:from-indigo-950/40 dark:to-purple-950/40 border border-indigo-200 dark:border-indigo-800 shadow-xs space-y-2">
+          <div className="flex items-center gap-2 text-indigo-700 dark:text-indigo-300 font-bold text-xs uppercase tracking-wider">
+            <Bot className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+            <span>AI Curriculum Insight</span>
+          </div>
+          {aiInsight.summary && (
+            <p className="text-xs sm:text-sm text-slate-800 dark:text-slate-200 leading-relaxed font-medium">
+              {aiInsight.summary}
+            </p>
+          )}
+          {aiInsight.suggestedAction && (
+            <div className="text-[11px] sm:text-xs text-indigo-600 dark:text-indigo-400 font-semibold flex items-center gap-1.5 pt-1">
+              <span>Next recommended step:</span>
+              <span className="text-slate-700 dark:text-slate-300 font-normal">{aiInsight.suggestedAction}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {loading || aiSearching ? (
         <div className="py-12 text-center text-slate-400 animate-pulse text-sm">
-          Searching through your workspace...
+          {aiSearching ? 'AI is analyzing your study syllabus and ranking relevant concepts...' : 'Searching through your workspace...'}
         </div>
       ) : totalResultsCount === 0 && (query || statusFilter !== 'all' || selectedSubjectId) ? (
         <div className="text-center py-16 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-3xl p-8 bg-white/50 dark:bg-slate-900/50">

@@ -15,6 +15,7 @@ import topicRoutes from './routes/topicRoutes';
 import materialRoutes from './routes/materialRoutes';
 import noteRoutes from './routes/noteRoutes';
 import importRoutes from './routes/importRoutes';
+import aiRoutes from './routes/aiRoutes';
 import {
   getDashboardStats,
   searchAll,
@@ -115,6 +116,7 @@ app.use('/api/topics', topicRoutes);
 app.use('/api/materials', materialRoutes);
 app.use('/api/notes', noteRoutes);
 app.use('/api/import', importRoutes);
+app.use('/api/ai', aiRoutes);
 
 // Other global & reset endpoints
 app.get('/api/dashboard', authenticateToken, getDashboardStats);

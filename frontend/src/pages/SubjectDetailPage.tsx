@@ -27,7 +27,8 @@ import {
   Edit2,
   Trash2,
   Copy,
-  Share2
+  Share2,
+  Sparkles
 } from 'lucide-react';
 import api from '../services/api';
 import { Subject, Unit, Topic } from '../types';
@@ -35,6 +36,7 @@ import { UnitSection } from '../components/subject/UnitSection';
 import { StudyMaterialModal } from '../components/material/StudyMaterialModal';
 import { RevisionNotesModal } from '../components/notes/RevisionNotesModal';
 import { JsonImportModal } from '../components/common/JsonImportModal';
+import { AiChecklistModal } from '../components/common/AiChecklistModal';
 import { ShareSubjectModal } from '../components/subject/ShareSubjectModal';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { useToast } from '../contexts/ToastContext';
@@ -55,6 +57,7 @@ export const SubjectDetailPage: React.FC = () => {
   // Modals state
   const [addUnitModalOpen, setAddUnitModalOpen] = useState(false);
   const [jsonImportModalOpen, setJsonImportModalOpen] = useState(false);
+  const [aiModalOpen, setAiModalOpen] = useState(false);
   const [unitName, setUnitName] = useState('');
   const [unitDesc, setUnitDesc] = useState('');
   const [editingUnit, setEditingUnit] = useState<Unit | null>(null);
@@ -510,8 +513,17 @@ export const SubjectDetailPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Add Unit & JSON Import Buttons */}
+        {/* Add Unit, AI & JSON Import Buttons */}
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setAiModalOpen(true)}
+            className="flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold transition shadow-sm"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-purple-200" />
+            <span>Generate with AI</span>
+          </button>
+
           <button
             type="button"
             onClick={() => setJsonImportModalOpen(true)}
@@ -836,6 +848,15 @@ export const SubjectDetailPage: React.FC = () => {
         subjects={subject ? [subject] : []}
         initialSubjectId={subjectId}
         onImportSuccess={() => fetchSubjectAndUnits()}
+      />
+
+      {/* AI Checklist Modal */}
+      <AiChecklistModal
+        isOpen={aiModalOpen}
+        onClose={() => setAiModalOpen(false)}
+        subjects={subject ? [subject] : []}
+        initialSubjectId={subjectId}
+        onSuccess={() => fetchSubjectAndUnits()}
       />
 
       {/* Share Subject Modal */}
