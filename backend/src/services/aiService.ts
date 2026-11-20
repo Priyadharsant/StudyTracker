@@ -91,8 +91,8 @@ export async function generateChecklistWithGroq(params: GenerateChecklistParams)
   let userPrompt = '';
 
   if (mode === 'subject') {
-    systemPrompt = `You are a curriculum and syllabus parser for StudyTrack.
-Your job is to parse the user's syllabus or study notes into a structured JSON checklist.
+    systemPrompt = `You are an expert curriculum and syllabus parser for StudyTrack.
+Your job is to parse the user's syllabus, lecture notes, or rough chat messages into a structured JSON checklist.
 You must return ONLY a single valid JSON object, without markdown formatting or code fences.
 
 JSON Schema to follow:
@@ -118,25 +118,27 @@ JSON Schema to follow:
   ]
 }
 
-STRICT INSTRUCTIONS:
+STRICT INSTRUCTIONS FOR UNIT MERGING & CHAT CLEANING:
 1. "type" MUST be exactly "subject".
-2. "subject.name": Use the subject name if provided by the user or extract it accurately from the text.
-3. "subject.description": Brief 1-2 sentence description.
-4. "subject.color": Pick an appropriate hex color (e.g. #3B82F6, #10B981, #8B5CF6, #F59E0B, #EF4444, #EC4899, #06B6D4).
-5. "subject.icon": One of ["BookOpen", "Globe", "Code", "Database", "Cpu", "Layers", "Folder"].
-6. "units": Must preserve the exact original unit order from the input syllabus.
-7. "topics": Extract all topics and subtopics. Do not omit supplied topics. Preserve original sequence.
-8. "materials": MUST ALWAYS BE AN EMPTY ARRAY [] FOR EVERY TOPIC. Do not add, parse, or fill any materials or URLs. The user will fill materials manually.
-9. Return strictly pure JSON without markdown codeblocks or commentary.`;
+2. Subject detection: Auto-detect or use the subject title override.
+3. Chat noise removal: Clean out timestamps (e.g. "[11/18, 10:21 PM]"), usernames/sender tags (e.g. "Manoj Mama:", "Pon Samuel:").
+4. CRITICAL DUPLICATE & FRAGMENTED UNIT MERGING:
+   - In informal chats or notes, the same unit may appear in multiple messages with overlapping or newly added topics (e.g., message 1 mentions "Unit 2: HDLC, Sliding window, Problems" and message 2 also mentions "Unit 2: Point to point, Sliding window").
+   - You MUST merge all occurrences of the same unit number into ONE single consolidated unit.
+   - Combine all unique topics and questions belonging to that unit under that single unit. Do NOT create duplicate unit objects for the same unit number!
+   - Remove verbatim duplicate topics within the merged unit, but retain all distinct topics and sub-questions.
+5. Unit ordering: Ensure units are arranged in clean numerical order (Unit 1, Unit 2, Unit 3, Unit 4, Unit 5...) regardless of which order they appeared in the pasted text.
+6. "materials": MUST ALWAYS BE AN EMPTY ARRAY [] FOR EVERY TOPIC.
+7. Return strictly pure JSON without markdown codeblocks or commentary.`;
 
-    userPrompt = `Please parse the following syllabus into the StudyTrack subject checklist schema in JSON format:
+    userPrompt = `Please parse and merge the following syllabus/chat notes into the StudyTrack subject checklist schema in JSON format:
 ${subjectName ? `Subject Title Override: ${subjectName}\n` : ''}
 --- SYLLABUS CONTENT ---
 ${content}`;
   } else {
     // Mode: unit
     systemPrompt = `You are a curriculum and syllabus parser for StudyTrack.
-Your job is to parse unit syllabus or questions into a structured single-unit JSON checklist.
+Your job is to parse unit syllabus, questions, or notes into a structured single-unit JSON checklist.
 You must return ONLY a single valid JSON object, without markdown formatting or code fences.
 
 JSON Schema to follow:
@@ -156,10 +158,11 @@ JSON Schema to follow:
 
 STRICT INSTRUCTIONS:
 1. "type" MUST be exactly "unit".
-2. "unit.name": Use the unit name provided by the user or extract it from the unit content.
-3. "topics": Extract all topics, questions, and concepts for this unit. Do not omit items. Preserve original sequence.
-4. "materials": MUST ALWAYS BE AN EMPTY ARRAY [] FOR EVERY TOPIC. Do not add, parse, or fill any materials or URLs. The user will fill materials manually.
-5. Return strictly pure JSON without markdown codeblocks or commentary.`;
+2. "unit.name": Use the target unit name provided or extract the unit title from the text.
+3. Clean out timestamps and chat sender names.
+4. If multiple fragments of this unit appear in the text, merge all unique topics into this single unit without duplicate topics.
+5. "materials": MUST ALWAYS BE AN EMPTY ARRAY [] FOR EVERY TOPIC.
+6. Return strictly pure JSON without markdown codeblocks or commentary.`;
 
     userPrompt = `Please parse the following content into a single unit checklist in JSON format:
 ${subjectName ? `Subject Name: ${subjectName}\n` : ''}
@@ -251,18 +254,59 @@ ${content}`;
   }
 
   // Force materials to be empty array on every topic per user requirement
+  // and defensively consolidate any duplicate unit names/numbers in the array
   if (rawJson && Array.isArray(rawJson.units)) {
+    const consolidatedUnitsMap = new Map<string, any>();
+
     rawJson.units.forEach((u: any) => {
+      if (!u || !u.name) return;
+      // Extract normalized unit key: e.g. "Unit 2" from "Unit 2: Data Link Layer"
+      const match = u.name.match(/Unit\s*[-–—:]*\s*(\d+)/i);
+      const unitKey = match ? `unit_${match[1]}` : u.name.toLowerCase().trim();
+
+      if (!consolidatedUnitsMap.has(unitKey)) {
+        consolidatedUnitsMap.set(unitKey, {
+          name: u.name,
+          topics: []
+        });
+      }
+
+      const existingUnit = consolidatedUnitsMap.get(unitKey);
       if (Array.isArray(u.topics)) {
         u.topics.forEach((t: any) => {
-          t.materials = [];
+          if (!t || !t.title) return;
+          // Avoid duplicate topic titles within the same unit
+          const exists = existingUnit.topics.some(
+            (et: any) => et.title.toLowerCase().trim() === t.title.toLowerCase().trim()
+          );
+          if (!exists) {
+            existingUnit.topics.push({
+              title: t.title.trim(),
+              description: t.description || '',
+              materials: []
+            });
+          }
         });
       }
     });
+
+    rawJson.units = Array.from(consolidatedUnitsMap.values());
   } else if (rawJson && rawJson.unit && Array.isArray(rawJson.unit.topics)) {
+    const uniqueTopics: any[] = [];
     rawJson.unit.topics.forEach((t: any) => {
-      t.materials = [];
+      if (!t || !t.title) return;
+      const exists = uniqueTopics.some(
+        (ut) => ut.title.toLowerCase().trim() === t.title.toLowerCase().trim()
+      );
+      if (!exists) {
+        uniqueTopics.push({
+          title: t.title.trim(),
+          description: t.description || '',
+          materials: []
+        });
+      }
     });
+    rawJson.unit.topics = uniqueTopics;
   }
 
   // Validate with Zod based on mode

@@ -16,6 +16,8 @@ import api from '../services/api';
 import { Subject, Topic, Note, DashboardStats } from '../types';
 import { SubjectCard } from '../components/subject/SubjectCard';
 import { JsonImportModal } from '../components/common/JsonImportModal';
+import { AiChecklistModal } from '../components/common/AiChecklistModal';
+import { CreationChoiceModal } from '../components/common/CreationChoiceModal';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
@@ -30,7 +32,9 @@ export const DashboardPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   // Quick subject create dialog state
+  const [choiceModalOpen, setChoiceModalOpen] = useState(false);
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [aiModalOpen, setAiModalOpen] = useState(false);
   const [jsonImportModalOpen, setJsonImportModalOpen] = useState(false);
   const [subjectName, setSubjectName] = useState('');
   const [subjectDesc, setSubjectDesc] = useState('');
@@ -182,20 +186,11 @@ export const DashboardPage: React.FC = () => {
         <div className="flex flex-wrap items-center gap-3">
           <button
             type="button"
-            onClick={() => setJsonImportModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-white/20 hover:bg-white/30 text-white font-bold text-sm rounded-xl backdrop-blur-md shadow-md border border-white/20 transition"
-          >
-            <Sparkles className="w-4 h-4 text-purple-200" />
-            <span>Create by JSON</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setCreateModalOpen(true)}
+            onClick={() => setChoiceModalOpen(true)}
             className="flex items-center gap-2 px-4 py-2.5 bg-white text-blue-700 font-bold text-sm rounded-xl hover:bg-blue-50 shadow-md transition"
           >
             <Plus className="w-4 h-4" />
-            <span>Create Subject</span>
+            <span>Add Subject</span>
           </button>
         </div>
       </div>
@@ -564,6 +559,32 @@ export const DashboardPage: React.FC = () => {
         danger
         onConfirm={handleDeleteSubject}
         onCancel={() => setDeleteSubjectId(null)}
+      />
+
+      {/* Add Subject Choice Modal */}
+      <CreationChoiceModal
+        isOpen={choiceModalOpen}
+        onClose={() => setChoiceModalOpen(false)}
+        title="Add Subject"
+        subtitle="Choose how you want to build this study subject checklist"
+        onSelectAi={() => setAiModalOpen(true)}
+        onSelectJson={() => setJsonImportModalOpen(true)}
+        onSelectManual={() => {
+          setSubjectName('');
+          setSubjectDesc('');
+          setSubjectColor('#3B82F6');
+          setCreateModalOpen(true);
+        }}
+        manualLabel="Create Manually"
+        manualDesc="Enter subject title, description and theme color manually."
+      />
+
+      {/* AI Checklist Modal */}
+      <AiChecklistModal
+        isOpen={aiModalOpen}
+        onClose={() => setAiModalOpen(false)}
+        subjects={subjectCards}
+        onSuccess={() => fetchDashboardData()}
       />
 
       {/* JSON Import Modal */}

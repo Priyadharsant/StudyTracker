@@ -13,7 +13,8 @@ import {
   ChevronRight,
   RotateCcw,
   X,
-  Link as LinkIcon
+  Link as LinkIcon,
+  RefreshCw
 } from 'lucide-react';
 import api from '../../services/api';
 import { Subject, Unit } from '../../types';
@@ -23,7 +24,7 @@ interface AiChecklistModalProps {
   isOpen: boolean;
   onClose: () => void;
   subjects: Subject[];
-  initialSubjectId?: string;
+  initialSubjectId?: string; // If provided, user is INSIDE a subject
   initialUnitId?: string;
   onSuccess: (createdSubjectId?: string) => void;
 }
@@ -37,26 +38,17 @@ export const AiChecklistModal: React.FC<AiChecklistModalProps> = ({
   onSuccess
 }) => {
   const { toast } = useToast();
+  const isInsideSubject = !!initialSubjectId;
 
-  // Mode:
-  // - 'new-subject': Parse syllabus to create a brand new subject
-  // - 'existing-subject': Parse multi-unit or single-unit syllabus and insert into an EXISTING subject
-  // - 'unit': Parse syllabus for one specific unit and append/replace in that unit
-  const [targetType, setTargetType] = useState<'new-subject' | 'existing-subject' | 'unit'>(
-    initialUnitId ? 'unit' : initialSubjectId ? 'existing-subject' : 'new-subject'
-  );
-
-  const [selectedSubjectId, setSelectedSubjectId] = useState<string>(
-    initialSubjectId || (subjects[0]?._id || '')
-  );
-  const [availableUnits, setAvailableUnits] = useState<Unit[]>([]);
-  const [selectedUnitId, setSelectedUnitId] = useState<string>(initialUnitId || '');
-  const [loadingUnits, setLoadingUnits] = useState(false);
+  // Active Subject ID (if inside subject, locked to that subject)
+  const [selectedSubjectId] = useState<string>(initialSubjectId || (subjects[0]?._id || ''));
 
   // Form inputs
   const [subjectName, setSubjectName] = useState('');
-  const [unitName, setUnitName] = useState('');
   const [content, setContent] = useState('');
+
+  // Generation result mode: 'multi' (multiple units) or 'single' (single unit)
+  const [detectedFormat, setDetectedFormat] = useState<'multi' | 'single'>('multi');
 
   // Step: 1 = Input, 2 = Preview & Edit
   const [step, setStep] = useState<1 | 2>(1);
@@ -64,7 +56,7 @@ export const AiChecklistModal: React.FC<AiChecklistModalProps> = ({
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Material attachment custom modal state (replaces window.prompt)
+  // Material attachment custom modal state
   const [materialModal, setMaterialModal] = useState<{
     open: boolean;
     unitIdx: number;
@@ -79,7 +71,7 @@ export const AiChecklistModal: React.FC<AiChecklistModalProps> = ({
     url: ''
   });
 
-  // Generated & Editable Checklist State
+  // Generated Subject & Units State
   const [generatedSubject, setGeneratedSubject] = useState<{
     name: string;
     description: string;
@@ -107,38 +99,12 @@ export const AiChecklistModal: React.FC<AiChecklistModalProps> = ({
     }>
   >([]);
 
-  // Load units when selected subject changes for 'unit' mode
-  React.useEffect(() => {
-    if ((targetType === 'unit' || targetType === 'existing-subject') && selectedSubjectId) {
-      setLoadingUnits(true);
-      api
-        .get(`/subjects/${selectedSubjectId}/units`)
-        .then((res) => {
-          if (res.data.success) {
-            const fetchedUnits = res.data.units || [];
-            setAvailableUnits(fetchedUnits);
-            if (fetchedUnits.length > 0 && !selectedUnitId) {
-              setSelectedUnitId(fetchedUnits[0]._id);
-            }
-          }
-        })
-        .catch(() => {
-          toast('Failed to load subject units', 'error');
-        })
-        .finally(() => setLoadingUnits(false));
-    }
-  }, [targetType, selectedSubjectId]);
-
   if (!isOpen) return null;
 
-  const handleGenerate = async () => {
+  // Primary generate handler (AI automatically extracts single or multiple units)
+  const handleGenerate = async (forceMode?: 'subject' | 'unit') => {
     if (!content.trim() || content.trim().length < 10) {
       setErrorMsg('Please paste syllabus text, notes or unit questions (minimum 10 characters).');
-      return;
-    }
-
-    if ((targetType === 'existing-subject' || targetType === 'unit') && !selectedSubjectId) {
-      setErrorMsg('Please select an existing subject.');
       return;
     }
 
@@ -146,27 +112,19 @@ export const AiChecklistModal: React.FC<AiChecklistModalProps> = ({
     setGenerating(true);
 
     try {
-      const mode = targetType === 'unit' ? 'unit' : 'subject';
+      // By default, if user asks to force single unit, use 'unit'. Otherwise 'subject'
+      // which auto-extracts units and merges duplicates like Unit 2
+      const mode = forceMode || 'subject';
       const payload: any = {
         mode,
         content: content.trim()
       };
 
-      if (targetType === 'new-subject') {
-        if (subjectName.trim()) payload.subjectName = subjectName.trim();
-      } else if (targetType === 'existing-subject') {
+      if (!isInsideSubject && subjectName.trim()) {
+        payload.subjectName = subjectName.trim();
+      } else if (isInsideSubject) {
         const sub = subjects.find((s) => s._id === selectedSubjectId);
         if (sub) payload.subjectName = sub.name;
-      } else {
-        const sub = subjects.find((s) => s._id === selectedSubjectId);
-        if (sub) payload.subjectName = sub.name;
-
-        const targetUnit = availableUnits.find((u) => u._id === selectedUnitId);
-        if (targetUnit) {
-          payload.unitName = targetUnit.name;
-        } else if (unitName.trim()) {
-          payload.unitName = unitName.trim();
-        }
       }
 
       const res = await api.post('/ai/generate-checklist', payload);
@@ -176,24 +134,28 @@ export const AiChecklistModal: React.FC<AiChecklistModalProps> = ({
         if (mode === 'subject') {
           const sub = subjects.find((s) => s._id === selectedSubjectId);
           setGeneratedSubject({
-            name: targetType === 'existing-subject' && sub ? sub.name : (result.subject?.name || subjectName || 'New Subject'),
-            description: targetType === 'existing-subject' && sub ? (sub.description || '') : (result.subject?.description || ''),
-            color: targetType === 'existing-subject' && sub ? (sub.color || '#3B82F6') : (result.subject?.color || '#3B82F6'),
-            icon: targetType === 'existing-subject' && sub ? (sub.icon || 'BookOpen') : (result.subject?.icon || 'BookOpen')
+            name: isInsideSubject && sub ? sub.name : (result.subject?.name || subjectName || 'New Subject'),
+            description: isInsideSubject && sub ? (sub.description || '') : (result.subject?.description || ''),
+            color: isInsideSubject && sub ? (sub.color || '#3B82F6') : (result.subject?.color || '#3B82F6'),
+            icon: isInsideSubject && sub ? (sub.icon || 'BookOpen') : (result.subject?.icon || 'BookOpen')
           });
-          setGeneratedUnits(result.units || []);
+          const unitsList = result.units || [];
+          setGeneratedUnits(unitsList);
+          setDetectedFormat(unitsList.length > 1 ? 'multi' : 'single');
         } else {
-          // Mode: unit
+          // Force single unit mode
           const unitData = result.unit;
-          setGeneratedUnits([
+          const unitsList = [
             {
-              name: unitData?.name || unitName || 'Generated Unit',
+              name: unitData?.name || 'Generated Unit',
               topics: unitData?.topics || []
             }
-          ]);
+          ];
+          setGeneratedUnits(unitsList);
+          setDetectedFormat('single');
         }
         setStep(2);
-        toast('AI Checklist generated! Review and customize below.', 'success');
+        toast('AI Checklist generated! Review below.', 'success');
       } else {
         setErrorMsg(res.data.message || 'Generation failed.');
       }
@@ -202,7 +164,7 @@ export const AiChecklistModal: React.FC<AiChecklistModalProps> = ({
       const msg =
         err.response?.data?.message ||
         err.message ||
-        'Failed to generate checklist. Please verify your Groq API configuration.';
+        'Failed to generate checklist. Please check your Groq API configuration.';
       setErrorMsg(msg);
       toast(msg, 'error');
     } finally {
@@ -210,7 +172,12 @@ export const AiChecklistModal: React.FC<AiChecklistModalProps> = ({
     }
   };
 
-  // Editing handlers in preview step
+  // Convert current preview between single unit and multi-unit
+  const handleRegenerateAs = (targetFormat: 'multi' | 'single') => {
+    handleGenerate(targetFormat === 'single' ? 'unit' : 'subject');
+  };
+
+  // Unit and Topic Editing handlers
   const handleUpdateUnitName = (unitIdx: number, newName: string) => {
     const updated = [...generatedUnits];
     updated[unitIdx].name = newName;
@@ -271,7 +238,6 @@ export const AiChecklistModal: React.FC<AiChecklistModalProps> = ({
     setGeneratedUnits(updated);
   };
 
-  // Custom UI for adding Material URL instead of window.prompt
   const handleOpenAddMaterial = (unitIdx: number, topicIdx: number) => {
     setMaterialModal({
       open: true,
@@ -298,7 +264,7 @@ export const AiChecklistModal: React.FC<AiChecklistModalProps> = ({
     ];
     setGeneratedUnits(updated);
     setMaterialModal({ open: false, unitIdx: 0, topicIdx: 0, title: '', url: '' });
-    toast('Reference link attached to topic', 'success');
+    toast('Reference link attached', 'success');
   };
 
   const handleRemoveMaterial = (unitIdx: number, topicIdx: number, matIdx: number) => {
@@ -312,7 +278,8 @@ export const AiChecklistModal: React.FC<AiChecklistModalProps> = ({
   const handleSaveAndCreate = async () => {
     setSaving(true);
     try {
-      if (targetType === 'new-subject') {
+      if (!isInsideSubject) {
+        // Outside subject: Create brand new Subject
         if (!generatedSubject.name.trim()) {
           toast('Subject name cannot be empty', 'error');
           setSaving(false);
@@ -327,72 +294,32 @@ export const AiChecklistModal: React.FC<AiChecklistModalProps> = ({
 
         const res = await api.post('/import/subject', payload);
         if (res.data.success) {
-          toast('AI Subject checklist created successfully!', 'success');
+          toast('AI Subject created successfully!', 'success');
           onSuccess(res.data.subject?._id);
           onClose();
         }
-      } else if (targetType === 'existing-subject') {
-        // Insert all extracted units directly into the chosen existing subject!
+      } else {
+        // Inside subject: Insert generated units into this subject
         const res = await api.post('/ai/insert-units-into-subject', {
           subjectId: selectedSubjectId,
           units: generatedUnits
         });
 
         if (res.data.success) {
-          toast(res.data.message || 'Units added to existing subject successfully!', 'success');
+          toast(res.data.message || 'Units added to subject successfully!', 'success');
           onSuccess(selectedSubjectId);
           onClose();
-        }
-      } else {
-        // Mode: unit
-        const currentUnit = generatedUnits[0];
-        if (!currentUnit || !currentUnit.topics.length) {
-          toast('Unit must contain at least one topic', 'error');
-          setSaving(false);
-          return;
-        }
-
-        if (selectedUnitId && selectedUnitId !== 'new') {
-          // Merge topics directly into existing unit, preserving existing units and topics
-          const res = await api.post('/ai/merge-unit-topics', {
-            unitId: selectedUnitId,
-            topics: currentUnit.topics,
-            mergeMode: 'append'
-          });
-
-          if (res.data.success) {
-            toast(res.data.message || 'Topics successfully added to existing unit!', 'success');
-            onSuccess(selectedSubjectId);
-            onClose();
-          }
-        } else {
-          // Create as a brand new unit under the selected subject
-          const payload = {
-            destinationSubjectId: selectedSubjectId,
-            type: 'unit',
-            unit: {
-              name: currentUnit.name,
-              topics: currentUnit.topics
-            }
-          };
-
-          const res = await api.post('/import/unit', payload);
-          if (res.data.success) {
-            toast('AI Unit checklist created successfully!', 'success');
-            onSuccess(selectedSubjectId);
-            onClose();
-          }
         }
       }
     } catch (err: any) {
       console.error('Failed to save AI checklist:', err);
-      toast(err.response?.data?.message || 'Failed to save checklist to database', 'error');
+      toast(err.response?.data?.message || 'Failed to save checklist', 'error');
     } finally {
       setSaving(false);
     }
   };
 
-  const currentSelectedSub = subjects.find((s) => s._id === selectedSubjectId);
+  const currentSub = subjects.find((s) => s._id === selectedSubjectId);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/60 backdrop-blur-xs overflow-y-auto">
@@ -407,16 +334,18 @@ export const AiChecklistModal: React.FC<AiChecklistModalProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="font-extrabold text-lg text-slate-900 dark:text-white">
-                  Create with AI
+                  {isInsideSubject ? `Add Units to ${currentSub?.name || 'Subject'}` : 'Create New Subject with AI'}
                 </h3>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800">
-                  Groq Powered
+                  Groq Fast AI
                 </span>
               </div>
               <p className="text-xs text-slate-500">
                 {step === 1
-                  ? 'Paste raw syllabus, questions or curriculum notes to auto-generate checklists'
-                  : 'Review and customize your AI-generated checklist before saving'}
+                  ? isInsideSubject
+                    ? 'Paste syllabus or notes. AI will detect and organize units automatically.'
+                    : 'Paste your syllabus, notes, or chat messages to generate a new study subject.'
+                  : 'Review and customize your generated checklist before saving'}
               </p>
             </div>
           </div>
@@ -435,14 +364,14 @@ export const AiChecklistModal: React.FC<AiChecklistModalProps> = ({
             <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${step === 1 ? 'bg-indigo-600 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-600'}`}>
               1
             </span>
-            <span>Configure & Paste Syllabus</span>
+            <span>Paste Syllabus</span>
           </div>
           <ChevronRight className="w-4 h-4 mx-3 text-slate-300 dark:text-slate-700" />
           <div className={`flex items-center gap-2 font-bold ${step === 2 ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400'}`}>
             <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${step === 2 ? 'bg-indigo-600 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-600'}`}>
               2
             </span>
-            <span>Preview & Save Checklist</span>
+            <span>Preview & Confirm</span>
           </div>
         </div>
 
@@ -456,149 +385,32 @@ export const AiChecklistModal: React.FC<AiChecklistModalProps> = ({
           )}
 
           {step === 1 ? (
-            /* STEP 1: Configuration & Syllabus Input */
-            <div className="space-y-5">
-              {/* Target Type Selection */}
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">
-                  Destination & Target
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setTargetType('new-subject')}
-                    className={`flex flex-col p-4 rounded-2xl border text-left transition ${
-                      targetType === 'new-subject'
-                        ? 'border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/30 text-indigo-900 dark:text-indigo-200 ring-2 ring-indigo-500/20'
-                        : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
-                    }`}
-                  >
-                    <BookOpen className={`w-5 h-5 mb-2 ${targetType === 'new-subject' ? 'text-indigo-600' : 'text-slate-400'}`} />
-                    <div className="font-bold text-xs text-slate-900 dark:text-white">
-                      New Subject
-                    </div>
-                    <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                      Create an entirely new course with all units & topics.
-                    </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setTargetType('existing-subject')}
-                    className={`flex flex-col p-4 rounded-2xl border text-left transition ${
-                      targetType === 'existing-subject'
-                        ? 'border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/30 text-indigo-900 dark:text-indigo-200 ring-2 ring-indigo-500/20'
-                        : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
-                    }`}
-                  >
-                    <Layers className={`w-5 h-5 mb-2 ${targetType === 'existing-subject' ? 'text-indigo-600' : 'text-slate-400'}`} />
-                    <div className="font-bold text-xs text-slate-900 dark:text-white">
-                      Insert into Existing Subject
-                    </div>
-                    <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                      Extract all units from syllabus and add them into an existing subject.
-                    </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setTargetType('unit')}
-                    className={`flex flex-col p-4 rounded-2xl border text-left transition ${
-                      targetType === 'unit'
-                        ? 'border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/30 text-indigo-900 dark:text-indigo-200 ring-2 ring-indigo-500/20'
-                        : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
-                    }`}
-                  >
-                    <Plus className={`w-5 h-5 mb-2 ${targetType === 'unit' ? 'text-indigo-600' : 'text-slate-400'}`} />
-                    <div className="font-bold text-xs text-slate-900 dark:text-white">
-                      Specific Unit Only
-                    </div>
-                    <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                      Generate topics for a single unit and merge without touching other units.
-                    </div>
-                  </button>
-                </div>
-              </div>
-
-              {/* Subject & Unit Selectors */}
-              {targetType === 'new-subject' ? (
+            /* STEP 1: Syllabus Input Only */
+            <div className="space-y-4">
+              {/* If outside subject: provide subject name override input */}
+              {!isInsideSubject ? (
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1">
                     Subject Name (Optional Override)
                   </label>
                   <input
                     type="text"
-                    placeholder="e.g. Distributed Computing Systems (Leave blank to auto-detect from syllabus)"
+                    placeholder="e.g. Distributed Computing (or leave blank to auto-detect from syllabus)"
                     value={subjectName}
                     onChange={(e) => setSubjectName(e.target.value)}
                     className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs outline-hidden focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
-              ) : targetType === 'existing-subject' ? (
-                <div className="bg-slate-50 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1">
-                    Target Subject to insert units into *
-                  </label>
-                  <select
-                    value={selectedSubjectId}
-                    onChange={(e) => setSelectedSubjectId(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs outline-hidden focus:ring-2 focus:ring-indigo-500 font-medium"
-                  >
-                    {subjects.map((s) => (
-                      <option key={s._id} value={s._id}>
-                        {s.name}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-[11px] text-slate-400 mt-1.5">
-                    All units and topics detected in the syllabus will be added to this subject. Existing units will not be deleted.
-                  </p>
-                </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1">
-                      Target Subject *
-                    </label>
-                    <select
-                      value={selectedSubjectId}
-                      onChange={(e) => {
-                        setSelectedSubjectId(e.target.value);
-                        setSelectedUnitId('');
-                      }}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs outline-hidden focus:ring-2 focus:ring-indigo-500 font-medium"
-                    >
-                      {subjects.map((s) => (
-                        <option key={s._id} value={s._id}>
-                          {s.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1">
-                      Merge into Unit
-                    </label>
-                    {loadingUnits ? (
-                      <div className="py-2.5 text-xs text-slate-400 flex items-center gap-2">
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading units...
-                      </div>
-                    ) : (
-                      <select
-                        value={selectedUnitId}
-                        onChange={(e) => setSelectedUnitId(e.target.value)}
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs outline-hidden focus:ring-2 focus:ring-indigo-500 font-medium"
-                      >
-                        <option value="new">+ Create as New Unit</option>
-                        {availableUnits.map((u) => (
-                          <option key={u._id} value={u._id}>
-                            Append to: {u.name}
-                          </option>
-                        ))}
-                      </select>
-                    )}
-                  </div>
+                /* Inside subject: subtle banner showing current subject destination */
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+                  <span
+                    className="w-3 h-3 rounded-full shrink-0"
+                    style={{ backgroundColor: currentSub?.color || '#3B82F6' }}
+                  />
+                  <span>
+                    Adding units directly into: <strong className="text-slate-900 dark:text-white">{currentSub?.name}</strong>
+                  </span>
                 </div>
               )}
 
@@ -613,27 +425,59 @@ export const AiChecklistModal: React.FC<AiChecklistModalProps> = ({
                   </span>
                 </div>
                 <textarea
-                  rows={10}
+                  rows={11}
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
-                  placeholder={
-                    targetType === 'unit'
-                      ? `Paste chapter notes, syllabus bullet points or test questions for this unit...\n\nExample:\nUNIT: Concurrency & Multithreading\n1. Thread lifecycle and state transitions\n2. Synchronization primitives (Mutex, Semaphores)\n3. Deadlock prevention and Banker's Algorithm`
-                      : `Paste course syllabus, curriculum modules or lecture notes here...\n\nEven rough chat notes work!\nExample:\n[11/18, 10:21 PM] Unit - 1: OSI, TCP, Types of network, Topology\nUnit - 2: Sliding window, HDLC, Problems\nUnit - 3: Distance vector routing, Link state routing`
-                  }
+                  placeholder={`Paste your syllabus or lecture notes here. Even messy WhatsApp/Telegram messages work!\n\nExample:\n[11/18, 10:21 PM] Unit 2: HDLC, Sliding window, Problems\n[11/18, 10:21 PM] Unit 1: OSI, TCP, Types of network, Switching\n[11/19, 6:38 PM] Unit 4: TCP, Congestion control, Congestion avoidance\n[11/19, 6:38 PM] Unit 3: Distance vector routing, Link state routing\n\nAI will automatically merge fragmented units (e.g. Unit 2), clean messenger noise, and structure all topics!`}
                   className="w-full p-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs font-mono outline-hidden focus:ring-2 focus:ring-indigo-500 leading-relaxed"
                 />
                 <p className="text-[11px] text-slate-400 mt-1.5 flex items-center gap-1.5">
                   <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
-                  AI will extract units and topics. Materials are left empty for manual attachment.
+                  AI will auto-merge repeated unit occurrences and deduplicate topics.
                 </p>
               </div>
             </div>
           ) : (
             /* STEP 2: Preview & Editing */
-            <div className="space-y-6">
-              {/* Subject metadata (if new-subject mode) */}
-              {targetType === 'new-subject' ? (
+            <div className="space-y-5">
+              {/* Switch/Regenerate between single-unit and multi-unit bar */}
+              <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Format: {detectedFormat === 'multi' ? `${generatedUnits.length} Units Detected` : 'Single Unit'}
+                  </span>
+                  <span className="text-[11px] text-slate-400">
+                    ({generatedUnits.reduce((acc, u) => acc + u.topics.length, 0)} total topics)
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {detectedFormat === 'single' ? (
+                    <button
+                      type="button"
+                      onClick={() => handleRegenerateAs('multi')}
+                      disabled={generating}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-50 dark:bg-purple-950/50 border border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300 text-xs font-bold hover:bg-purple-100 transition shadow-xs"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      <span>Regenerate as Multi-Unit</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => handleRegenerateAs('single')}
+                      disabled={generating}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-50 dark:bg-purple-950/50 border border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300 text-xs font-bold hover:bg-purple-100 transition shadow-xs"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      <span>Regenerate as Single Unit</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Subject metadata (if creating a brand new subject outside) */}
+              {!isInsideSubject && (
                 <div className="p-4 rounded-2xl border border-indigo-100 dark:border-indigo-950/60 bg-indigo-50/30 dark:bg-indigo-950/20 space-y-3">
                   <div className="flex items-center gap-2">
                     <span
@@ -694,40 +538,22 @@ export const AiChecklistModal: React.FC<AiChecklistModalProps> = ({
                     />
                   </div>
                 </div>
-              ) : targetType === 'existing-subject' && currentSelectedSub ? (
-                <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <span
-                      className="w-4 h-4 rounded-full"
-                      style={{ backgroundColor: currentSelectedSub.color }}
-                    />
-                    <div>
-                      <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">Inserting into Subject:</span>
-                      <h4 className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white">{currentSelectedSub.name}</h4>
-                    </div>
-                  </div>
-                  <span className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-2.5 py-1 rounded-xl">
-                    {generatedUnits.length} new units to append
-                  </span>
-                </div>
-              ) : null}
+              )}
 
               {/* Units and Topics List */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                    Units & Topics ({generatedUnits.reduce((acc, u) => acc + u.topics.length, 0)} total topics)
+                    Units & Topics Preview
                   </div>
-                  {targetType !== 'unit' && (
-                    <button
-                      type="button"
-                      onClick={handleAddUnit}
-                      className="flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>Add Unit</span>
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={handleAddUnit}
+                    className="flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add Another Unit</span>
+                  </button>
                 </div>
 
                 {generatedUnits.map((u, uIdx) => (
@@ -750,7 +576,7 @@ export const AiChecklistModal: React.FC<AiChecklistModalProps> = ({
                         <span className="text-[11px] font-semibold text-slate-400">
                           {u.topics.length} topics
                         </span>
-                        {targetType !== 'unit' && (
+                        {generatedUnits.length > 1 && (
                           <button
                             type="button"
                             onClick={() => handleRemoveUnit(uIdx)}
@@ -864,7 +690,7 @@ export const AiChecklistModal: React.FC<AiChecklistModalProps> = ({
           {step === 1 ? (
             <div className="text-xs text-slate-400 flex items-center gap-1.5">
               <Bot className="w-4 h-4 text-indigo-500" />
-              <span>Groq Free Tier with 3-model automatic fallback</span>
+              <span>Groq API with Automatic Unit Merging</span>
             </div>
           ) : (
             <button
@@ -889,14 +715,14 @@ export const AiChecklistModal: React.FC<AiChecklistModalProps> = ({
             {step === 1 ? (
               <button
                 type="button"
-                onClick={handleGenerate}
+                onClick={() => handleGenerate()}
                 disabled={generating || !content.trim()}
                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-linear-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-500/20 disabled:opacity-50 transition"
               >
                 {generating ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Analyzing & Parsing Syllabus...</span>
+                    <span>Analyzing & Merging Units...</span>
                   </>
                 ) : (
                   <>
@@ -920,7 +746,7 @@ export const AiChecklistModal: React.FC<AiChecklistModalProps> = ({
                 ) : (
                   <>
                     <CheckCircle2 className="w-4 h-4" />
-                    <span>Confirm & Create Checklist</span>
+                    <span>{isInsideSubject ? 'Confirm & Insert Units' : 'Confirm & Create Subject'}</span>
                   </>
                 )}
               </button>
@@ -929,7 +755,7 @@ export const AiChecklistModal: React.FC<AiChecklistModalProps> = ({
         </div>
       </div>
 
-      {/* Styled in-app modal for adding Material link (no window.prompt) */}
+      {/* Styled in-app modal for adding Material link */}
       {materialModal.open && (
         <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
           <div className="w-full max-w-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-2xl animate-in zoom-in-95">
