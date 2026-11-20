@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { generateAIChecklist, mergeUnitTopics, insertUnitsIntoSubject, smartAISearch } from '../controllers/aiController';
+import { generateAIChecklist, mergeUnitTopics, insertUnitsIntoSubject, smartAISearch, generateAINotes } from '../controllers/aiController';
 import { authenticateToken } from '../middleware/auth';
 
 const router = Router();
@@ -18,5 +18,8 @@ router.post('/insert-units-into-subject', insertUnitsIntoSubject);
 
 // Smart AI Search across subjects, topics, and notes
 router.post('/smart-search', smartAISearch);
+
+// AI Note Generator with noise cleaner and exam presets
+router.post('/generate-notes', generateAINotes);
 
 export default router;

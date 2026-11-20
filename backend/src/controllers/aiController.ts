@@ -9,7 +9,8 @@ import { AuthenticatedRequest } from '../types';
 import {
   generateChecklistWithGroq,
   checkUserRateLimit,
-  smartSearchWithGroq
+  smartSearchWithGroq,
+  generateNotesWithGroq
 } from '../services/aiService';
 import {
   fullSubjectImportSchema,
@@ -271,6 +272,58 @@ export const insertUnitsIntoSubject = async (req: AuthenticatedRequest, res: Res
     res.status(500).json({
       success: false,
       message: 'Failed to insert units into subject: ' + (err.message || 'Server error')
+    });
+  }
+};
+
+export const generateAINotes = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const userId = req.user?.userId;
+  if (!userId) {
+    res.status(401).json({ success: false, message: 'Authentication required' });
+    return;
+  }
+
+  const rateLimitStatus = checkUserRateLimit(userId);
+  if (!rateLimitStatus.allowed) {
+    res.status(429).json({
+      success: false,
+      message: `AI request limit reached. Please try again in ${rateLimitStatus.resetInSec} seconds.`,
+      resetInSeconds: rateLimitStatus.resetInSec
+    });
+    return;
+  }
+
+  const { topicTitle, preset, specification, sourceText } = req.body;
+
+  if (!topicTitle || typeof topicTitle !== 'string' || !topicTitle.trim()) {
+    res.status(400).json({
+      success: false,
+      message: 'Topic title is required.'
+    });
+    return;
+  }
+
+  const validPresets = ['16-mark', '8-mark', '2-mark', 'custom'];
+  const selectedPreset = validPresets.includes(preset) ? preset : '16-mark';
+
+  try {
+    const result = await generateNotesWithGroq({
+      topicTitle: topicTitle.trim(),
+      preset: selectedPreset,
+      specification: typeof specification === 'string' ? specification.trim() : undefined,
+      sourceText: typeof sourceText === 'string' ? sourceText.trim() : undefined
+    });
+
+    res.json({
+      success: true,
+      htmlContent: result.htmlContent,
+      summary: result.summary
+    });
+  } catch (error: any) {
+    console.error('[AI Notes Error]:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to generate revision notes.'
     });
   }
 };

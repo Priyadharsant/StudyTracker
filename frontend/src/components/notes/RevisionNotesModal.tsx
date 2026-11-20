@@ -13,11 +13,13 @@ import {
   Save,
   Check,
   Trash2,
-  X
+  X,
+  Sparkles
 } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
 import { ConfirmDialog } from '../common/ConfirmDialog';
+import { AiNoteGeneratorModal } from './AiNoteGeneratorModal';
 
 interface RevisionNotesModalProps {
   topicId: string;
@@ -40,6 +42,7 @@ export const RevisionNotesModal: React.FC<RevisionNotesModalProps> = ({
   const [saving, setSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [aiGeneratorOpen, setAiGeneratorOpen] = useState(false);
   const autoSaveTimerRef = useRef<any>(null);
 
   const editor = useEditor({
@@ -115,6 +118,18 @@ export const RevisionNotesModal: React.FC<RevisionNotesModalProps> = ({
     }
   };
 
+  const handleInsertAiNote = (htmlContent: string, mode: 'replace' | 'append') => {
+    if (!editor) return;
+    if (mode === 'replace') {
+      editor.commands.setContent(htmlContent);
+    } else {
+      const current = editor.getHTML();
+      editor.commands.setContent(`${current}<hr/>${htmlContent}`);
+    }
+    // Auto-save after inserting
+    saveNote(editor.getHTML(), false);
+  };
+
   const handleDelete = async () => {
     if (!noteId) return;
     try {
@@ -157,6 +172,15 @@ export const RevisionNotesModal: React.FC<RevisionNotesModalProps> = ({
             </div>
 
             <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setAiGeneratorOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-lg text-sm font-medium transition shadow-xs"
+                title="Generate or polish notes with AI"
+              >
+                <Sparkles className="w-4 h-4 text-amber-300" />
+                <span className="hidden sm:inline">AI Notes</span>
+              </button>
               <button
                 type="button"
                 onClick={() => saveNote()}
@@ -287,6 +311,13 @@ export const RevisionNotesModal: React.FC<RevisionNotesModalProps> = ({
         danger
         onConfirm={handleDelete}
         onCancel={() => setDeleteConfirmOpen(false)}
+      />
+
+      <AiNoteGeneratorModal
+        isOpen={aiGeneratorOpen}
+        onClose={() => setAiGeneratorOpen(false)}
+        topicTitle={topicTitle}
+        onInsertNote={handleInsertAiNote}
       />
     </>
   );

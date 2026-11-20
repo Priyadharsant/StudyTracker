@@ -373,6 +373,87 @@ export interface SmartSearchParams {
   }>;
 }
 
+export async function generateNotesWithGroq(params: {
+  topicTitle: string;
+  preset: '16-mark' | '8-mark' | '2-mark' | 'custom';
+  specification?: string;
+  sourceText?: string;
+}): Promise<{ htmlContent: string; summary: string }> {
+  const { topicTitle, preset, specification, sourceText } = params;
+
+  const groq = getGroqClient();
+  const primaryModel = config.groqModel || 'openai/gpt-oss-120b';
+  const fallbackModels = config.groqFallbackModels && config.groqFallbackModels.length > 0
+    ? config.groqFallbackModels
+    : ['openai/gpt-oss-20b', 'openai/gpt-oss-safeguard-20b', 'qwen/qwen3.8-27b'];
+  const modelQueue = [primaryModel, ...fallbackModels.filter(m => m !== primaryModel)];
+
+  const systemPrompt = `You are an elite academic professor, exam evaluator, and note synthesizer for college engineering and university exams.
+Your task is to take a topic title, exam format specifications, and optional raw unformatted text (which may contain messy ChatGPT conversations, web clippings, or student drafts), and generate PERFECT, high-scoring exam revision notes.
+
+CRITICAL RULES:
+1. OUTPUT FORMAT: Return clean, semantic HTML suitable for direct insertion into a TipTap rich-text editor (use <h2>, <h3>, <p>, <ul>, <ol>, <li>, <strong>, <em>, <code>, <pre>). Do NOT wrap in <html>, <body>, or markdown codeblocks like \`\`\`html.
+2. CLEAN ALL NOISE: If source text is provided, strip away all conversational fluff, introductions (e.g., "Sure! Here is...", "As an AI..."), disclaimers, or chat artifacts. Extract only the factual, technical core.
+3. PRESET GUIDELINES:
+   - "16-mark": Must be comprehensive, deeply structured with clear exam-oriented subheadings:
+     * <h2>Introduction & Definition</h2> (crisp high-scoring formal definition)
+     * <h2>Core Architecture / Working Principle</h2> (detailed mechanism; describe diagram workflows clearly using structured steps or ASCII block flow)
+     * <h2>Key Subtopics & Technical Concepts</h2> (exhaustively explain every relevant subtopic)
+     * <h2>Algorithms / Mathematical Formulations / Code / Protocols</h2> (step-by-step mathematical derivation, formula definitions with parameter explanations, or clean code/protocol flow if applicable)
+     * <h2>Key Advantages & Disadvantages / Comparisons</h2> (tabular or bulleted comparative breakdown)
+     * <h2>University Exam Key Takeaways / Common Pitfalls</h2>
+   - "8-mark": Focused, structured, balanced. Crisp definitions, working mechanism, core bullet points, and key formulas/protocols.
+   - "2-mark": Crisp, high-yield answer. Exactly 1-2 sentence formal definition, key formula/rule, and 2-3 essential keywords or examples needed to score full 2 marks.
+   - "custom": Follow whatever specific guidelines the user supplied in their specification prompt.
+4. INCORPORATE SPECIFICATIONS: If the user provides additional specifications (e.g. "include specific subtopics X, Y, Z", "highlight formulas", "explain for Anna University"), strictly address every requested subtopic in clear designated sections.
+5. NO HALLUCINATION OF IRRELEVANT FILLER: Maintain high academic rigor and technical depth.`;
+
+  const userPrompt = `TOPIC: "${topicTitle}"
+PRESET: ${preset}
+${specification ? `USER CUSTOM SPECIFICATION: "${specification}"` : ''}
+${sourceText && sourceText.trim() ? `RAW SOURCE TEXT / NOTES (Clean the noise and restructure):
+"""
+${sourceText.trim().slice(0, 30000)}
+"""` : 'No raw text provided. Generate comprehensive, authoritative revision notes from scratch based on the topic and specifications.'}
+
+Now generate the complete, pristine exam revision notes in semantic HTML.`;
+
+  let htmlContent = '';
+  for (let idx = 0; idx < modelQueue.length; idx++) {
+    const currentModel = modelQueue[idx];
+    try {
+      const response = await groq.chat.completions.create({
+        model: currentModel,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        temperature: 0.2,
+        max_tokens: 4096
+      });
+      const raw = response.choices[0]?.message?.content || '';
+      if (raw.trim()) {
+        htmlContent = raw.trim()
+          .replace(/^```html\s*/i, '')
+          .replace(/^```\s*/i, '')
+          .replace(/\s*```$/i, '');
+        break;
+      }
+    } catch (err: any) {
+      console.warn(`[AI Notes] Model ${currentModel} failed: ${err.message}. Trying next fallback...`);
+    }
+  }
+
+  if (!htmlContent.trim()) {
+    throw new Error('Failed to generate revision notes using all available AI models. Please try again.');
+  }
+
+  return {
+    htmlContent,
+    summary: `Generated ${preset} exam notes for "${topicTitle}".`
+  };
+}
+
 export async function smartSearchWithGroq(params: SmartSearchParams): Promise<{
   aiSummary: string;
   relevantItemIds: string[];
