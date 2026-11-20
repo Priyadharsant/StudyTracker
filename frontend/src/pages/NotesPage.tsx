@@ -140,18 +140,13 @@ export const NotesPage: React.FC = () => {
                 </div>
 
                 <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (topic?._id) {
-                        setActiveTopic({ id: topic._id, title: topic.title });
-                      }
-                    }}
+                  <Link
+                    to={topic?._id ? `/topics/${topic._id}/notes` : '#'}
                     className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline"
                   >
                     <Edit3 className="w-3.5 h-3.5" />
                     <span>Open Editor</span>
-                  </button>
+                  </Link>
 
                   <button
                     type="button"

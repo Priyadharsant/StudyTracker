@@ -279,7 +279,7 @@ export const AiNoteGeneratorModal: React.FC<AiNoteGeneratorModalProps> = ({
 
               {/* Rendered HTML snippet preview */}
               <div
-                className="max-h-72 overflow-y-auto p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 prose prose-sm dark:prose-invert max-w-none text-slate-800 dark:text-slate-200"
+                className="max-h-80 overflow-y-auto p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 study-notes-content text-slate-800 dark:text-slate-200"
                 dangerouslySetInnerHTML={{ __html: generatedHtml }}
               />
             </div>

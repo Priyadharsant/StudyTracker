@@ -577,7 +577,7 @@ export const SubjectDetailPage: React.FC = () => {
                   onDeleteTopic={handleDeleteTopic}
                   onMoveTopic={handleMoveTopic}
                   onResetTopic={handleResetTopic}
-                  onOpenNotes={(t) => setActiveNotesTopic(t)}
+                  onOpenNotes={(t) => navigate(`/topics/${t._id}/notes`)}
                   onOpenMaterials={(t) => setActiveMaterialTopic(t)}
                   onOpenUnitMaterials={(u) => setActiveMaterialUnit(u)}
                 />

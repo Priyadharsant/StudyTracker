@@ -386,11 +386,17 @@ export const smartAISearch = async (req: AuthenticatedRequest, res: Response): P
     });
 
     notes.forEach((n: any) => {
+      // Strip HTML tags for clean AI search context, providing up to 1,200 chars of substantive note content
+      const plainNote = (n.content || '')
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
       items.push({
         id: n._id.toString(),
         type: 'note' as const,
         title: `Note: ${n.topicId?.title || 'Topic Note'}`,
-        description: n.content?.slice(0, 200) || '',
+        description: plainNote.slice(0, 1200) || '',
         subjectName: n.subjectId?.name || ''
       });
     });
@@ -408,6 +414,7 @@ export const smartAISearch = async (req: AuthenticatedRequest, res: Response): P
     res.status(200).json({
       success: true,
       aiSummary: aiResult.aiSummary,
+      keyPoints: aiResult.keyPoints || [],
       suggestedAction: aiResult.suggestedAction,
       topics: matchedTopics.length > 0 ? matchedTopics : topics.slice(0, 10),
       subjects: matchedSubjects,

@@ -13,22 +13,27 @@ import {
   Filter,
   Sparkles,
   Bot,
-  Loader2
+  Loader2,
+  Copy,
+  Check
 } from 'lucide-react';
 import api from '../services/api';
 import { Subject, Unit, Topic, Material, Note } from '../types';
 import { DocumentViewerModal } from '../components/common/DocumentViewerModal';
 import { RevisionNotesModal } from '../components/notes/RevisionNotesModal';
+import { useToast } from '../contexts/ToastContext';
 
 export const SearchPage: React.FC = () => {
+  const { toast } = useToast();
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'completed' | 'pending'>('all');
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>('');
 
   const [subjectsList, setSubjectsList] = useState<Subject[]>([]);
-  const [aiInsight, setAiInsight] = useState<{ summary?: string; suggestedAction?: string } | null>(null);
+  const [aiInsight, setAiInsight] = useState<{ summary?: string; keyPoints?: string[]; suggestedAction?: string } | null>(null);
   const [aiSearching, setAiSearching] = useState(false);
+  const [copiedPoints, setCopiedPoints] = useState(false);
   const [results, setResults] = useState<{
     subjects: Subject[];
     units: Unit[];
@@ -111,6 +116,7 @@ export const SearchPage: React.FC = () => {
         if (aiRes.data.success) {
           setAiInsight({
             summary: aiRes.data.aiSummary,
+            keyPoints: Array.isArray(aiRes.data.keyPoints) ? aiRes.data.keyPoints : [],
             suggestedAction: aiRes.data.suggestedAction
           });
           // If AI ranked relevant topics, enhance the topics ordering
@@ -134,6 +140,22 @@ export const SearchPage: React.FC = () => {
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     executeSearch(query, selectedSubjectId, statusFilter);
+  };
+
+  const copyAiKeyPoints = () => {
+    if (!aiInsight) return;
+    const textToCopy = [
+      aiInsight.summary ? `${aiInsight.summary}\n` : '',
+      aiInsight.keyPoints && aiInsight.keyPoints.length > 0
+        ? `Key Revision Points:\n${aiInsight.keyPoints.map((p) => `• ${p}`).join('\n')}\n`
+        : '',
+      aiInsight.suggestedAction ? `Next Step: ${aiInsight.suggestedAction}` : ''
+    ].filter(Boolean).join('\n');
+
+    navigator.clipboard.writeText(textToCopy);
+    setCopiedPoints(true);
+    toast('Revision points copied to clipboard', 'info');
+    setTimeout(() => setCopiedPoints(false), 2000);
   };
 
   const totalResultsCount =
@@ -257,19 +279,60 @@ export const SearchPage: React.FC = () => {
 
       {/* 2. AI Insight Result Card (once loaded) */}
       {!aiSearching && aiInsight && (
-        <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-indigo-50/80 to-purple-50/80 dark:from-indigo-950/40 dark:to-purple-950/40 border border-indigo-200 dark:border-indigo-800 shadow-xs space-y-2">
-          <div className="flex items-center gap-2 text-indigo-700 dark:text-indigo-300 font-bold text-xs uppercase tracking-wider">
-            <Bot className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-            <span>AI Curriculum Insight</span>
+        <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-indigo-50/80 to-purple-50/80 dark:from-indigo-950/40 dark:to-purple-950/40 border border-indigo-200 dark:border-indigo-800 shadow-xs space-y-3 animate-in fade-in">
+          <div className="flex items-center justify-between border-b border-indigo-200/60 dark:border-indigo-800/50 pb-2">
+            <div className="flex items-center gap-2 text-indigo-700 dark:text-indigo-300 font-bold text-xs uppercase tracking-wider">
+              <Bot className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+              <span>AI Study & Revision Insight</span>
+            </div>
+            <button
+              type="button"
+              onClick={copyAiKeyPoints}
+              className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold bg-white dark:bg-slate-800 border border-indigo-200 dark:border-indigo-700 rounded-lg hover:bg-indigo-50 dark:hover:bg-slate-700 text-indigo-700 dark:text-indigo-300 transition"
+              title="Copy key points"
+            >
+              {copiedPoints ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-500" />
+                  <span>Copied!</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>Copy Points</span>
+                </>
+              )}
+            </button>
           </div>
+
+          {/* Medium Executive Summary */}
           {aiInsight.summary && (
             <p className="text-xs sm:text-sm text-slate-800 dark:text-slate-200 leading-relaxed font-medium">
               {aiInsight.summary}
             </p>
           )}
+
+          {/* Structured Key Revision Points with Bullets */}
+          {aiInsight.keyPoints && aiInsight.keyPoints.length > 0 && (
+            <div className="space-y-1.5 pt-1">
+              <span className="text-[11px] uppercase tracking-wider font-bold text-indigo-600 dark:text-indigo-400 block">
+                Key Exam & Revision Takeaways:
+              </span>
+              <ul className="space-y-1.5 pl-1">
+                {aiInsight.keyPoints.map((point, idx) => (
+                  <li key={idx} className="flex items-start gap-2 text-xs sm:text-sm text-slate-800 dark:text-slate-200 leading-snug">
+                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 dark:bg-indigo-400 mt-1.5 shrink-0" />
+                    <span>{point}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Action / Next Step */}
           {aiInsight.suggestedAction && (
-            <div className="text-[11px] sm:text-xs text-indigo-600 dark:text-indigo-400 font-semibold flex items-center gap-1.5 pt-1">
-              <span>Next recommended step:</span>
+            <div className="text-[11px] sm:text-xs text-indigo-600 dark:text-indigo-400 font-semibold flex items-center gap-1.5 pt-1 border-t border-indigo-200/50 dark:border-indigo-800/40">
+              <span className="shrink-0">Next recommended step:</span>
               <span className="text-slate-700 dark:text-slate-300 font-normal">{aiInsight.suggestedAction}</span>
             </div>
           )}

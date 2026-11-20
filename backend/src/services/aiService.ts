@@ -373,6 +373,13 @@ export interface SmartSearchParams {
   }>;
 }
 
+export interface SmartSearchResponse {
+  aiSummary: string;
+  keyPoints?: string[];
+  relevantItemIds: string[];
+  suggestedAction?: string;
+}
+
 export async function generateNotesWithGroq(params: {
   topicTitle: string;
   preset: '16-mark' | '8-mark' | '2-mark' | 'custom';
@@ -393,7 +400,7 @@ Your task is to take a topic title, exam format specifications, and optional raw
 
 CRITICAL RULES:
 1. OUTPUT FORMAT: Return clean, semantic HTML suitable for direct insertion into a TipTap rich-text editor (use <h2>, <h3>, <p>, <ul>, <ol>, <li>, <strong>, <em>, <code>, <pre>). Do NOT wrap in <html>, <body>, or markdown codeblocks like \`\`\`html.
-2. CLEAN ALL NOISE: If source text is provided, strip away all conversational fluff, introductions (e.g., "Sure! Here is...", "As an AI..."), disclaimers, or chat artifacts. Extract only the factual, technical core.
+2. RAW TEXT FORMATTING (CRITICAL): If raw source text is provided by the student, DO NOT hallucinate, invent new unrelated theories, or omit their study content. Strip conversational fluff ("Sure!", "Here is...", disclaimers) and FAITHFULLY format their actual raw information into structured, aesthetic HTML with clear headings, bullet points, and bolded terms.
 3. PRESET GUIDELINES:
    - "16-mark": Must be comprehensive, deeply structured with clear exam-oriented subheadings:
      * <h2>Introduction & Definition</h2> (crisp high-scoring formal definition)
@@ -454,15 +461,12 @@ Now generate the complete, pristine exam revision notes in semantic HTML.`;
   };
 }
 
-export async function smartSearchWithGroq(params: SmartSearchParams): Promise<{
-  aiSummary: string;
-  relevantItemIds: string[];
-  suggestedAction?: string;
-}> {
+export async function smartSearchWithGroq(params: SmartSearchParams): Promise<SmartSearchResponse> {
   const { query, items } = params;
   if (!items || items.length === 0) {
     return {
       aiSummary: `No matching study items found for "${query}". Try searching for other concepts or topics.`,
+      keyPoints: [],
       relevantItemIds: []
     };
   }
@@ -474,23 +478,34 @@ export async function smartSearchWithGroq(params: SmartSearchParams): Promise<{
     : ['openai/gpt-oss-20b', 'openai/gpt-oss-safeguard-20b', 'qwen/qwen3.8-27b'];
   const modelQueue = [primaryModel, ...fallbackModels.filter(m => m !== primaryModel)];
 
-  const contextItems = items.slice(0, 40).map(item => ({
+  const contextItems = items.slice(0, 30).map(item => ({
     id: item.id,
     type: item.type,
     title: item.title,
-    context: `${item.subjectName ? `Subject: ${item.subjectName}` : ''}${item.unitName ? `, Unit: ${item.unitName}` : ''}${item.description ? ` - ${item.description.slice(0, 150)}` : ''}`,
+    context: `${item.subjectName ? `Subject: ${item.subjectName}` : ''}${item.unitName ? `, Unit: ${item.unitName}` : ''}${item.description ? ` - Content: ${item.description.slice(0, 1000)}` : ''}`,
     status: item.completed ? 'completed' : 'pending'
   }));
 
-  const systemPrompt = `You are a smart semantic search assistant for StudyTrack.
-Analyze the user's natural query and rank the most semantically relevant items from their syllabus, topics, and revision notes.
-Return ONLY valid JSON matching this schema:
+  const systemPrompt = `You are a high-level academic search and revision mentor for StudyTrack.
+Analyze the user's natural language study query and their study materials (topics, syllabus units, and student revision notes).
+
+YOUR GOAL:
+1. Provide a medium-length, high-yield academic response.
+2. If the user asks to read notes or summarize a concept (e.g., "read osi notes and give important points for revise"), inspect the candidate notes/topics, extract the core ideas, and provide actionable revision points.
+3. Return ONLY valid JSON matching this exact schema:
 {
-  "aiSummary": "1-2 sentence direct insight answering the user's question or connecting the search query to their study materials",
+  "aiSummary": "A concise, coherent 2-3 sentence explanation directly answering the user's query or summarizing the relevant study concept.",
+  "keyPoints": [
+    "Key revision takeaway 1 (e.g. core architecture, formula, or distinction)",
+    "Key revision takeaway 2",
+    "Key revision takeaway 3",
+    "Key revision takeaway 4"
+  ],
   "relevantItemIds": ["id1", "id2"],
-  "suggestedAction": "brief tip on what topic to study or revise next"
+  "suggestedAction": "Specific, practical next step to test or revise this topic"
 }
-Only choose IDs that exist in the provided candidates list. Order relevantItemIds by highest semantic relevance.`;
+
+Provide 3 to 6 high-yield bullet points in 'keyPoints'. Only pick IDs in relevantItemIds that exist in the candidates list.`;
 
   const userPrompt = `User Search Query: "${query}"
 
@@ -520,6 +535,7 @@ ${JSON.stringify(contextItems, null, 2)}`;
   if (!completionText.trim()) {
     return {
       aiSummary: `Showing direct keyword matches for "${query}".`,
+      keyPoints: [],
       relevantItemIds: items.slice(0, 10).map(i => i.id)
     };
   }
@@ -529,12 +545,14 @@ ${JSON.stringify(contextItems, null, 2)}`;
     const parsed = JSON.parse(cleaned);
     return {
       aiSummary: parsed.aiSummary || `Search analysis for "${query}"`,
+      keyPoints: Array.isArray(parsed.keyPoints) ? parsed.keyPoints.filter((p: any) => typeof p === 'string' && p.trim()) : [],
       relevantItemIds: Array.isArray(parsed.relevantItemIds) ? parsed.relevantItemIds : items.map(i => i.id),
       suggestedAction: parsed.suggestedAction || undefined
     };
   } catch {
     return {
       aiSummary: `Showing matches for "${query}".`,
+      keyPoints: [],
       relevantItemIds: items.slice(0, 10).map(i => i.id)
     };
   }

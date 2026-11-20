@@ -12,6 +12,7 @@ import { NotesPage } from './pages/NotesPage';
 import { SearchPage } from './pages/SearchPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { SharedSubjectPage } from './pages/SharedSubjectPage';
+import { TopicNotesPage } from './pages/TopicNotesPage';
 
 // Protected Route wrapper
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -103,6 +104,14 @@ export const App: React.FC = () => {
                 element={
                   <ProtectedRoute>
                     <NotesPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/topics/:topicId/notes"
+                element={
+                  <ProtectedRoute>
+                    <TopicNotesPage />
                   </ProtectedRoute>
                 }
               />
