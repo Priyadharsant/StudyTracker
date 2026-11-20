@@ -9,7 +9,8 @@ import { createMaterialUrlSchema, updateMaterialSchema } from '../validators';
 import {
   uploadFileToStorage,
   deleteFileFromStorage,
-  getFileAccessUrl
+  getFileAccessUrl,
+  LOCAL_UPLOADS_DIR
 } from '../services/storageService';
 
 export const getMaterialsByTopic = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
@@ -376,7 +377,7 @@ export const streamLocalFile = async (req: AuthenticatedRequest, res: Response):
   }
 
   const safeFilename = path.basename(filename);
-  const filePath = path.join(__dirname, '../../uploads', fileUserId, safeFilename);
+  const filePath = path.join(LOCAL_UPLOADS_DIR, fileUserId, safeFilename);
 
   if (!fs.existsSync(filePath)) {
     res.status(404).json({ success: false, message: 'File not found' });

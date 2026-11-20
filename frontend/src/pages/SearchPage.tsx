@@ -27,7 +27,6 @@ export const SearchPage: React.FC = () => {
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>('');
 
   const [subjectsList, setSubjectsList] = useState<Subject[]>([]);
-  const [smartSearchActive, setSmartSearchActive] = useState(false);
   const [aiInsight, setAiInsight] = useState<{ summary?: string; suggestedAction?: string } | null>(null);
   const [aiSearching, setAiSearching] = useState(false);
   const [results, setResults] = useState<{
@@ -64,71 +63,78 @@ export const SearchPage: React.FC = () => {
     return () => clearTimeout(handler);
   }, [query]);
 
-  const handleSmartAISearch = async () => {
-    if (!query.trim()) return;
-    setAiSearching(true);
-    setSmartSearchActive(true);
-    try {
-      const res = await api.post('/ai/smart-search', {
-        query: query.trim(),
-        subjectId: selectedSubjectId || undefined
-      });
-      if (res.data.success) {
-        setResults({
-          subjects: res.data.subjects || [],
-          units: res.data.units || [],
-          topics: res.data.topics || [],
-          notes: res.data.notes || [],
-          materials: []
-        });
-        setAiInsight({
-          summary: res.data.aiSummary,
-          suggestedAction: res.data.suggestedAction
-        });
-      }
-    } catch (err: any) {
-      console.error('Smart AI Search error:', err);
-    } finally {
-      setAiSearching(false);
-    }
-  };
-
-  // Execute global search
-  useEffect(() => {
-    if (smartSearchActive) return;
-    if (!debouncedQuery.trim() && statusFilter === 'all' && !selectedSubjectId) {
+  // Main unified search handler:
+  // 1. Instantly queries backend database for immediate results
+  // 2. Concurrently calls AI Smart Search with skeleton preview box
+  const executeSearch = async (searchQuery: string, subjectIdFilter?: string, statusFilterVal?: string) => {
+    const q = searchQuery.trim();
+    if (!q && (!statusFilterVal || statusFilterVal === 'all') && !subjectIdFilter) {
       setResults({ subjects: [], units: [], topics: [], notes: [], materials: [] });
       setAiInsight(null);
       return;
     }
 
-    const doSearch = async () => {
-      setLoading(true);
-      try {
-        const params: any = {};
-        if (debouncedQuery.trim()) params.q = debouncedQuery.trim();
-        if (statusFilter !== 'all') params.status = statusFilter;
-        if (selectedSubjectId) params.subjectId = selectedSubjectId;
+    setLoading(true);
+    setAiSearching(true);
+    setAiInsight(null);
 
-        const res = await api.get('/search', { params });
-        if (res.data.success) {
-          setResults({
-            subjects: res.data.subjects || [],
-            units: res.data.units || [],
-            topics: res.data.topics || [],
-            notes: res.data.notes || [],
-            materials: res.data.materials || []
-          });
-        }
-      } catch (err) {
-        console.error('Search error:', err);
-      } finally {
-        setLoading(false);
+    // 1. Instant Backend Search
+    try {
+      const params: any = {};
+      if (q) params.q = q;
+      if (statusFilterVal && statusFilterVal !== 'all') params.status = statusFilterVal;
+      if (subjectIdFilter) params.subjectId = subjectIdFilter;
+
+      const backendRes = await api.get('/search', { params });
+      if (backendRes.data.success) {
+        setResults({
+          subjects: backendRes.data.subjects || [],
+          units: backendRes.data.units || [],
+          topics: backendRes.data.topics || [],
+          notes: backendRes.data.notes || [],
+          materials: backendRes.data.materials || []
+        });
       }
-    };
+    } catch (err) {
+      console.error('Instant search error:', err);
+    } finally {
+      setLoading(false);
+    }
 
-    doSearch();
-  }, [debouncedQuery, statusFilter, selectedSubjectId]);
+    // 2. Concurrently fetch AI Insights (if query provided)
+    if (q) {
+      try {
+        const aiRes = await api.post('/ai/smart-search', {
+          query: q,
+          subjectId: subjectIdFilter || undefined
+        });
+        if (aiRes.data.success) {
+          setAiInsight({
+            summary: aiRes.data.aiSummary,
+            suggestedAction: aiRes.data.suggestedAction
+          });
+          // If AI ranked relevant topics, enhance the topics ordering
+          if (Array.isArray(aiRes.data.topics) && aiRes.data.topics.length > 0) {
+            setResults((prev) => ({
+              ...prev,
+              topics: aiRes.data.topics
+            }));
+          }
+        }
+      } catch (aiErr) {
+        console.warn('AI search background error:', aiErr);
+      } finally {
+        setAiSearching(false);
+      }
+    } else {
+      setAiSearching(false);
+    }
+  };
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    executeSearch(query, selectedSubjectId, statusFilter);
+  };
 
   const totalResultsCount =
     results.subjects.length +
@@ -149,7 +155,7 @@ export const SearchPage: React.FC = () => {
       </div>
 
       {/* Search and Filters Bar */}
-      <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-3">
+      <form onSubmit={handleSearchSubmit} className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-3">
         <div className="relative flex items-center gap-2">
           <div className="relative flex-1">
             <SearchIcon className="w-5 h-5 text-slate-400 absolute left-4 top-3" />
@@ -157,38 +163,17 @@ export const SearchPage: React.FC = () => {
               type="text"
               placeholder="Search concepts, topics or questions (e.g. 'CAP Theorem', 'Recursion')..."
               value={query}
-              onChange={(e) => {
-                setQuery(e.target.value);
-                setSmartSearchActive(false);
-                setAiInsight(null);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && e.ctrlKey) {
-                  handleSmartAISearch();
-                }
-              }}
+              onChange={(e) => setQuery(e.target.value)}
               className="w-full pl-12 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-hidden"
             />
           </div>
 
           <button
-            type="button"
-            onClick={handleSmartAISearch}
-            disabled={aiSearching || !query.trim()}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-500/20 disabled:opacity-50 transition shrink-0"
-            title="Use AI to find semantically relevant topics and curriculum insights"
+            type="submit"
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-500/20 transition shrink-0"
           >
-            {aiSearching ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Thinking...</span>
-              </>
-            ) : (
-              <>
-                <Sparkles className="w-4 h-4 text-purple-200" />
-                <span>Smart AI Search</span>
-              </>
-            )}
+            <SearchIcon className="w-4 h-4" />
+            <span>Search</span>
           </button>
         </div>
 
@@ -200,7 +185,11 @@ export const SearchPage: React.FC = () => {
           {/* Status filter */}
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as any)}
+            onChange={(e) => {
+              const val = e.target.value as any;
+              setStatusFilter(val);
+              executeSearch(query, selectedSubjectId, val);
+            }}
             className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs outline-hidden"
           >
             <option value="all">All Topics (Any status)</option>
@@ -211,7 +200,11 @@ export const SearchPage: React.FC = () => {
           {/* Subject filter */}
           <select
             value={selectedSubjectId}
-            onChange={(e) => setSelectedSubjectId(e.target.value)}
+            onChange={(e) => {
+              const val = e.target.value;
+              setSelectedSubjectId(val);
+              executeSearch(query, val, statusFilter);
+            }}
             className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs outline-hidden"
           >
             <option value="">All Subjects</option>
@@ -224,10 +217,13 @@ export const SearchPage: React.FC = () => {
 
           {(query || statusFilter !== 'all' || selectedSubjectId) && (
             <button
+              type="button"
               onClick={() => {
                 setQuery('');
                 setStatusFilter('all');
                 setSelectedSubjectId('');
+                setResults({ subjects: [], units: [], topics: [], notes: [], materials: [] });
+                setAiInsight(null);
               }}
               className="text-xs text-rose-500 hover:underline font-semibold ml-auto"
             >
@@ -235,10 +231,32 @@ export const SearchPage: React.FC = () => {
             </button>
           )}
         </div>
-      </div>
+      </form>
 
       {/* Results View */}
-      {aiInsight && (
+      {/* 1. AI Skeleton Loading State while AI calculates insights */}
+      {aiSearching && (
+        <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-indigo-50/70 to-purple-50/70 dark:from-indigo-950/30 dark:to-purple-950/30 border border-indigo-200/80 dark:border-indigo-800/80 shadow-xs space-y-3 animate-pulse">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-indigo-500 animate-spin" />
+            <div className="h-3 w-36 bg-indigo-200 dark:bg-indigo-900 rounded-md" />
+            <span className="text-[10px] font-bold text-indigo-500 tracking-wider uppercase ml-auto">
+              Analyzing Syllabus...
+            </span>
+          </div>
+          <div className="space-y-2">
+            <div className="h-3.5 bg-indigo-200/70 dark:bg-indigo-900/60 rounded-md w-full" />
+            <div className="h-3.5 bg-indigo-200/50 dark:bg-indigo-900/40 rounded-md w-4/5" />
+          </div>
+          <div className="flex items-center gap-2 pt-1">
+            <div className="h-2.5 w-24 bg-indigo-300 dark:bg-indigo-800 rounded-md" />
+            <div className="h-2.5 w-48 bg-indigo-200/80 dark:bg-indigo-900/50 rounded-md" />
+          </div>
+        </div>
+      )}
+
+      {/* 2. AI Insight Result Card (once loaded) */}
+      {!aiSearching && aiInsight && (
         <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-indigo-50/80 to-purple-50/80 dark:from-indigo-950/40 dark:to-purple-950/40 border border-indigo-200 dark:border-indigo-800 shadow-xs space-y-2">
           <div className="flex items-center gap-2 text-indigo-700 dark:text-indigo-300 font-bold text-xs uppercase tracking-wider">
             <Bot className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
@@ -258,9 +276,9 @@ export const SearchPage: React.FC = () => {
         </div>
       )}
 
-      {loading || aiSearching ? (
+      {loading ? (
         <div className="py-12 text-center text-slate-400 animate-pulse text-sm">
-          {aiSearching ? 'AI is analyzing your study syllabus and ranking relevant concepts...' : 'Searching through your workspace...'}
+          Searching through your workspace...
         </div>
       ) : totalResultsCount === 0 && (query || statusFilter !== 'all' || selectedSubjectId) ? (
         <div className="text-center py-16 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-3xl p-8 bg-white/50 dark:bg-slate-900/50">

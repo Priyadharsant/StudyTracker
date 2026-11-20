@@ -28,42 +28,7 @@ export const uploadFileToStorage = async (
   const fileExt = path.extname(file.originalname);
   const cleanOriginalName = path.basename(file.originalname, fileExt).replace(/[^a-zA-Z0-9_-]/g, '_');
 
-  // Primary: Google Drive API
-  if (config.googleApiKey) {
-    try {
-      const drive = google.drive({ version: 'v3', auth: config.googleApiKey });
-      const stream = new Readable();
-      stream.push(file.buffer);
-      stream.push(null);
-
-      const driveRes = await drive.files.create({
-        requestBody: {
-          name: `${cleanOriginalName}${fileExt}`,
-          mimeType: file.mimetype,
-          description: `StudyTrack document uploaded by user ${userId}`
-        },
-        media: {
-          mimeType: file.mimetype,
-          body: stream
-        },
-        fields: 'id, name, webViewLink, webContentLink'
-      });
-
-      if (driveRes.data && driveRes.data.id) {
-        console.log(`[Google Drive API] Document uploaded successfully. ID: ${driveRes.data.id}`);
-        const driveFileId = driveRes.data.id;
-        const viewLink = driveRes.data.webViewLink || `https://drive.google.com/file/d/${driveFileId}/view`;
-        return {
-          storagePath: `gdrive://${driveFileId}/${cleanOriginalName}${fileExt}`,
-          url: viewLink
-        };
-      }
-    } catch (gdriveErr: any) {
-      console.warn('[Google Drive API] Notice on file creation:', gdriveErr.message || gdriveErr);
-    }
-  }
-
-  // Local fallback storage (cached in safe directory)
+  // Local storage (reliable, direct access for study documents)
   const userDir = path.join(LOCAL_UPLOADS_DIR, userId);
   try {
     if (!fs.existsSync(userDir)) {
@@ -77,8 +42,9 @@ export const uploadFileToStorage = async (
   const localFilePath = path.join(userDir, localFileName);
   try {
     fs.writeFileSync(localFilePath, file.buffer);
-  } catch (err) {
-    console.warn('[Storage] Write sync fallback warning:', err);
+  } catch (err: any) {
+    console.error('[Storage] Error writing file to disk:', err);
+    throw new Error('Failed to save document to storage: ' + (err.message || 'Disk write error'));
   }
 
   const relativeStoragePath = `local://${userId}/${localFileName}`;
