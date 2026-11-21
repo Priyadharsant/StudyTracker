@@ -262,7 +262,7 @@ export const JsonImportModal: React.FC<JsonImportModalProps> = ({
                 </span>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Generate course outlines with ChatGPT and paste below to import complete checklists
+                Generate course outlines or paste below to import complete checklists
               </p>
             </div>
           </div>

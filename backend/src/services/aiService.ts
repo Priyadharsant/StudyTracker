@@ -223,21 +223,21 @@ ${content}`;
   if (!completionText.trim()) {
     console.error('All models failed. Last error:', lastError?.message || lastError);
     if (lastError?.status === 429 || lastError?.message?.includes('rate limit') || lastError?.message?.includes('quota')) {
-      const error = new Error('Groq AI rate limit or free-plan quota exceeded across models. Please wait a moment and try again.');
+      const error = new Error('Service is busy right now. Please wait a moment and try again.');
       (error as any).statusCode = 429;
       throw error;
     }
     if (lastError?.status === 403 || lastError?.message?.includes('blocked at the project level')) {
-      const error = new Error(`The requested models are restricted in your Groq project. Please enable them in your Groq dashboard at https://console.groq.com/settings/project/limits.`);
+      const error = new Error('Service configuration error. Please contact the administrator.');
       (error as any).statusCode = 403;
       throw error;
     }
     if (lastError?.status === 401 || lastError?.message?.includes('API key')) {
-      const error = new Error('Invalid or unconfigured Groq API key.');
+      const error = new Error('Authentication error connecting to service.');
       (error as any).statusCode = 500;
       throw error;
     }
-    const error = new Error(lastError?.message || 'Failed to generate checklist with Groq AI service.');
+    const error = new Error(lastError?.message || 'Failed to generate checklist.');
     (error as any).statusCode = lastError?.status || 502;
     throw error;
   }
@@ -452,7 +452,7 @@ Now generate the complete, pristine exam revision notes in semantic HTML.`;
   }
 
   if (!htmlContent.trim()) {
-    throw new Error('Failed to generate revision notes using all available AI models. Please try again.');
+    throw new Error('Failed to generate revision notes. Please try again.');
   }
 
   return {

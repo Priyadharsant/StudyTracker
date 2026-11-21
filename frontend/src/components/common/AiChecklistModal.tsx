@@ -164,7 +164,7 @@ export const AiChecklistModal: React.FC<AiChecklistModalProps> = ({
       const msg =
         err.response?.data?.message ||
         err.message ||
-        'Failed to generate checklist. Please check your Groq API configuration.';
+        'Failed to generate checklist. Please try again.';
       setErrorMsg(msg);
       toast(msg, 'error');
     } finally {
@@ -334,10 +334,10 @@ export const AiChecklistModal: React.FC<AiChecklistModalProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="font-extrabold text-lg text-slate-900 dark:text-white">
-                  {isInsideSubject ? `Add Units to ${currentSub?.name || 'Subject'}` : 'Create New Subject with AI'}
+                  {isInsideSubject ? `Add Units to ${currentSub?.name || 'Subject'}` : 'Create New Subject'}
                 </h3>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800">
-                  Groq Fast AI
+                  Smart Generator
                 </span>
               </div>
               <p className="text-xs text-slate-500">
@@ -690,7 +690,7 @@ export const AiChecklistModal: React.FC<AiChecklistModalProps> = ({
           {step === 1 ? (
             <div className="text-xs text-slate-400 flex items-center gap-1.5">
               <Bot className="w-4 h-4 text-indigo-500" />
-              <span>Groq API with Automatic Unit Merging</span>
+              <span>Automatic Unit Merging & Topic Organization</span>
             </div>
           ) : (
             <button

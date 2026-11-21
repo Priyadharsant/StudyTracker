@@ -29,7 +29,7 @@ export const generateAIChecklist = async (req: AuthenticatedRequest, res: Respon
   if (!rateLimitStatus.allowed) {
     res.status(429).json({
       success: false,
-      message: `AI request limit reached. You can make up to 15 requests every 15 minutes. Please try again in ${rateLimitStatus.resetInSec} seconds.`,
+      message: `Too many requests. Please wait a moment and try again in ${rateLimitStatus.resetInSec} seconds.`,
       resetInSeconds: rateLimitStatus.resetInSec
     });
     return;
@@ -287,7 +287,7 @@ export const generateAINotes = async (req: AuthenticatedRequest, res: Response):
   if (!rateLimitStatus.allowed) {
     res.status(429).json({
       success: false,
-      message: `AI request limit reached. Please try again in ${rateLimitStatus.resetInSec} seconds.`,
+      message: `Too many requests. Please wait a moment and try again.`,
       resetInSeconds: rateLimitStatus.resetInSec
     });
     return;
@@ -342,7 +342,7 @@ export const smartAISearch = async (req: AuthenticatedRequest, res: Response): P
   if (!rateLimitStatus.allowed) {
     res.status(429).json({
       success: false,
-      message: `AI request limit reached. Please wait ${rateLimitStatus.resetInSec}s.`,
+      message: `Too many requests. Please wait a moment and try again.`,
       resetInSeconds: rateLimitStatus.resetInSec
     });
     return;

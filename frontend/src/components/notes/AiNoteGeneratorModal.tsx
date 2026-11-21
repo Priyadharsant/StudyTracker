@@ -206,7 +206,7 @@ export const AiNoteGeneratorModal: React.FC<AiNoteGeneratorModalProps> = ({
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5 flex flex-wrap items-center justify-between gap-1">
               <span className="flex items-center gap-1.5">
                 <FileText className="w-3.5 h-3.5 text-emerald-500" />
-                <span>Step 3: Paste Raw Notes / ChatGPT Output (Noise Filter)</span>
+                <span>Step 3: Paste Raw Notes (Noise Filter)</span>
               </span>
               <span className="text-[11px] font-normal text-slate-500 dark:text-slate-400 lowercase">optional - leave empty to generate from scratch</span>
             </label>
@@ -214,7 +214,7 @@ export const AiNoteGeneratorModal: React.FC<AiNoteGeneratorModalProps> = ({
               rows={4}
               value={sourceText}
               onChange={(e) => setSourceText(e.target.value)}
-              placeholder="Paste messy ChatGPT chat, raw lecture notes, or web articles here... AI will strip conversational fluff, extract key technical points, and organize them into the selected format."
+              placeholder="Paste raw lecture notes, draft text, or web clippings here... Conversational fluff will be removed, key technical points extracted, and organized cleanly into the selected format."
               className="w-full px-3.5 py-2.5 text-xs sm:text-sm bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 font-mono"
             />
           </div>
@@ -230,7 +230,7 @@ export const AiNoteGeneratorModal: React.FC<AiNoteGeneratorModalProps> = ({
               {loading ? (
                 <>
                   <RotateCw className="w-4 h-4 animate-spin" />
-                  <span>Synthesizing Exam Notes with Groq AI...</span>
+                  <span>Synthesizing Exam Notes...</span>
                 </>
               ) : (
                 <>
