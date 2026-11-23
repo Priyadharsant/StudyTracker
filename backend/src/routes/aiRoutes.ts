@@ -1,5 +1,12 @@
 import { Router } from 'express';
-import { generateAIChecklist, mergeUnitTopics, insertUnitsIntoSubject, smartAISearch, generateAINotes } from '../controllers/aiController';
+import {
+  generateAIChecklist,
+  mergeUnitTopics,
+  insertUnitsIntoSubject,
+  smartAISearch,
+  generateAINotes,
+  chatAboutTopic
+} from '../controllers/aiController';
 import { authenticateToken } from '../middleware/auth';
 
 const router = Router();
@@ -21,5 +28,8 @@ router.post('/smart-search', smartAISearch);
 
 // AI Note Generator with noise cleaner and exam presets
 router.post('/generate-notes', generateAINotes);
+
+// AI Tutor Chat: Ask doubts and explanations related to topics
+router.post('/chat-topic', chatAboutTopic);
 
 export default router;

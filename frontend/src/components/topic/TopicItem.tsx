@@ -15,10 +15,13 @@ import {
   RotateCcw,
   ExternalLink,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  MessageSquare,
+  Sparkles
 } from 'lucide-react';
 import { Topic, Unit } from '../../types';
 import { ConfirmDialog } from '../common/ConfirmDialog';
+import { AiTopicChatModal } from './AiTopicChatModal';
 
 interface TopicItemProps {
   topic: Topic;
@@ -48,6 +51,7 @@ export const TopicItem: React.FC<TopicItemProps> = ({
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [showInlineMaterials, setShowInlineMaterials] = useState(false);
+  const [aiChatOpen, setAiChatOpen] = useState(false);
 
   const {
     attributes,
@@ -171,6 +175,16 @@ export const TopicItem: React.FC<TopicItemProps> = ({
             >
               <FileText className="w-3.5 h-3.5" />
               <span>{topic.hasNotes ? 'Revision Notes' : 'Add Notes'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setAiChatOpen(true)}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 hover:bg-purple-100 dark:hover:bg-purple-900/60 transition shadow-2xs"
+              title="Ask AI doubts or discuss this topic"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+              <span>Ask Doubt</span>
             </button>
           </div>
 
@@ -315,6 +329,15 @@ export const TopicItem: React.FC<TopicItemProps> = ({
           setResetConfirmOpen(false);
         }}
         onCancel={() => setResetConfirmOpen(false)}
+      />
+
+      {/* AI Topic Chat Modal */}
+      <AiTopicChatModal
+        isOpen={aiChatOpen}
+        onClose={() => setAiChatOpen(false)}
+        topicId={topic._id}
+        topicTitle={topic.title}
+        unitName={typeof topic.unitId === "object" && topic.unitId ? topic.unitId.name : undefined}
       />
 
       {/* Delete Topic Confirmation */}

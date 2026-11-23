@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
+import Image from '@tiptap/extension-image';
 import {
   Bold,
   Italic,
@@ -14,7 +15,8 @@ import {
   Check,
   Trash2,
   X,
-  Sparkles
+  Sparkles,
+  ImageIcon
 } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
@@ -51,6 +53,10 @@ export const RevisionNotesModal: React.FC<RevisionNotesModalProps> = ({
       Link.configure({
         openOnClick: true,
         autolink: true
+      }),
+      Image.configure({
+        allowBase64: true,
+        inline: true
       })
     ],
     content: '',
@@ -283,6 +289,20 @@ export const RevisionNotesModal: React.FC<RevisionNotesModalProps> = ({
                 title="Code Block"
               >
                 <Code className="w-4 h-4" />
+              </button>
+              <div className="w-[1px] h-4 bg-slate-300 dark:bg-slate-700 mx-1" />
+              <button
+                type="button"
+                onClick={() => {
+                  const url = window.prompt('Enter image URL:');
+                  if (url && url.trim()) {
+                    editor.chain().focus().setImage({ src: url.trim() }).run();
+                  }
+                }}
+                className="p-1.5 rounded hover:bg-white dark:hover:bg-slate-700 transition text-slate-600 dark:text-slate-300"
+                title="Insert Image by URL"
+              >
+                <ImageIcon className="w-4 h-4" />
               </button>
             </div>
           )}

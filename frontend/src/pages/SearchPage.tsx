@@ -305,18 +305,18 @@ export const SearchPage: React.FC = () => {
             </button>
           </div>
 
-          {/* Medium Executive Summary */}
+          {/* AI Response Body */}
           {aiInsight.summary && (
-            <p className="text-xs sm:text-sm text-slate-800 dark:text-slate-200 leading-relaxed font-medium">
+            <div className="text-xs sm:text-sm text-slate-800 dark:text-slate-200 leading-relaxed whitespace-pre-line font-normal">
               {aiInsight.summary}
-            </p>
+            </div>
           )}
 
-          {/* Structured Key Revision Points with Bullets */}
+          {/* Optional Key Points (rendered only if AI generated takeaways) */}
           {aiInsight.keyPoints && aiInsight.keyPoints.length > 0 && (
             <div className="space-y-1.5 pt-1">
               <span className="text-[11px] uppercase tracking-wider font-bold text-indigo-600 dark:text-indigo-400 block">
-                Key Exam & Revision Takeaways:
+                Key Points:
               </span>
               <ul className="space-y-1.5 pl-1">
                 {aiInsight.keyPoints.map((point, idx) => (

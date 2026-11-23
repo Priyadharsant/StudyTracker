@@ -463,13 +463,6 @@ Now generate the complete, pristine exam revision notes in semantic HTML.`;
 
 export async function smartSearchWithGroq(params: SmartSearchParams): Promise<SmartSearchResponse> {
   const { query, items } = params;
-  if (!items || items.length === 0) {
-    return {
-      aiSummary: `No matching study items found for "${query}". Try searching for other concepts or topics.`,
-      keyPoints: [],
-      relevantItemIds: []
-    };
-  }
 
   const groq = getGroqClient();
   const primaryModel = config.groqModel || 'openai/gpt-oss-120b';
@@ -478,7 +471,7 @@ export async function smartSearchWithGroq(params: SmartSearchParams): Promise<Sm
     : ['openai/gpt-oss-20b', 'openai/gpt-oss-safeguard-20b', 'qwen/qwen3.8-27b'];
   const modelQueue = [primaryModel, ...fallbackModels.filter(m => m !== primaryModel)];
 
-  const contextItems = items.slice(0, 30).map(item => ({
+  const contextItems = (items || []).slice(0, 30).map(item => ({
     id: item.id,
     type: item.type,
     title: item.title,
@@ -486,30 +479,32 @@ export async function smartSearchWithGroq(params: SmartSearchParams): Promise<Sm
     status: item.completed ? 'completed' : 'pending'
   }));
 
-  const systemPrompt = `You are a high-level academic search and revision mentor for StudyTrack.
-Analyze the user's natural language study query and their study materials (topics, syllabus units, and student revision notes).
+  const systemPrompt = `You are an intelligent, adaptable academic study assistant for StudyTrack.
+The user is searching their study workspace or asking an academic question.
 
-YOUR GOAL:
-1. Provide a medium-length, high-yield academic response.
-2. If the user asks to read notes or summarize a concept (e.g., "read osi notes and give important points for revise"), inspect the candidate notes/topics, extract the core ideas, and provide actionable revision points.
-3. Return ONLY valid JSON matching this exact schema:
+YOUR BEHAVIOR:
+- Do NOT enforce a rigid or artificial template. Tailor your response dynamically and organically to what the user actually searched or asked:
+  * If the user searched a brief keyword (e.g. "TCP", "Merge Sort"): Provide a crisp overview, relevance, and key insights.
+  * If the user asked an explanation or "how to" question: Give a clear, direct, comprehensive explanation.
+  * If the user asked for revision points or comparisons (e.g. "difference between X and Y", "read notes and give important points"): Provide focused, well-formulated points directly answering their need.
+  * If the user asked a doubt or problem: Solve it directly and clearly.
+- If relevant topics or notes exist in the candidates list, reference and synthesize them. If not in the candidates list, still answer the user's academic question thoroughly and accurately from your knowledge base!
+
+Return ONLY valid JSON matching this schema:
 {
-  "aiSummary": "A concise, coherent 2-3 sentence explanation directly answering the user's query or summarizing the relevant study concept.",
+  "aiSummary": "Natural, direct response tailored specifically to the user's search or question. Format cleanly with paragraphs or markdown if helpful. Can be 1 paragraph or a detailed multi-sentence breakdown depending on the search.",
   "keyPoints": [
-    "Key revision takeaway 1 (e.g. core architecture, formula, or distinction)",
-    "Key revision takeaway 2",
-    "Key revision takeaway 3",
-    "Key revision takeaway 4"
+    "Optional dynamic takeaway or point - only include if relevant to the query, or leave empty if the summary is already self-contained"
   ],
   "relevantItemIds": ["id1", "id2"],
-  "suggestedAction": "Specific, practical next step to test or revise this topic"
+  "suggestedAction": "Optional next step or tip if helpful, or omit"
 }
 
-Provide 3 to 6 high-yield bullet points in 'keyPoints'. Only pick IDs in relevantItemIds that exist in the candidates list.`;
+Pick IDs in relevantItemIds ONLY from the provided candidate list.`;
 
-  const userPrompt = `User Search Query: "${query}"
+  const userPrompt = `User Query / Search: "${query}"
 
-Available Study Materials Candidates (JSON):
+Available Study Materials in Workspace (JSON):
 ${JSON.stringify(contextItems, null, 2)}`;
 
   let completionText = '';
@@ -557,4 +552,73 @@ ${JSON.stringify(contextItems, null, 2)}`;
     };
   }
 }
+
+export interface TopicChatParams {
+  topicTitle: string;
+  topicDescription?: string;
+  subjectName?: string;
+  unitName?: string;
+  notesContent?: string;
+  materialsList?: string[];
+  messages: Array<{ role: 'user' | 'assistant'; content: string }>;
+}
+
+export async function chatAboutTopicWithGroq(params: TopicChatParams): Promise<string> {
+  const { topicTitle, topicDescription, subjectName, unitName, notesContent, materialsList, messages } = params;
+
+  const groq = getGroqClient();
+  const primaryModel = config.groqModel || 'openai/gpt-oss-120b';
+  const fallbackModels = config.groqFallbackModels && config.groqFallbackModels.length > 0
+    ? config.groqFallbackModels
+    : ['openai/gpt-oss-20b', 'openai/gpt-oss-safeguard-20b', 'qwen/qwen3.8-27b'];
+  const modelQueue = [primaryModel, ...fallbackModels.filter(m => m !== primaryModel)];
+
+  const cleanNotes = (notesContent || '')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 2500);
+
+  const systemPrompt = `You are an expert, encouraging 1-on-1 academic tutor on StudyTrack.
+You are helping a student master this topic: "${topicTitle}".
+
+CONTEXT:
+${subjectName ? `Subject: ${subjectName}` : ''}
+${unitName ? `Unit / Chapter: ${unitName}` : ''}
+${topicDescription ? `Topic Description: ${topicDescription}` : ''}
+${cleanNotes ? `Student's Revision Notes: ${cleanNotes}` : ''}
+${materialsList && materialsList.length > 0 ? `Attached Materials: ${materialsList.join(', ')}` : ''}
+
+INSTRUCTIONS:
+1. Clarify any academic doubts, formulas, explanations, exam tips, and problem-solving steps.
+2. Formulate answers clearly with step-by-step breakdowns, code snippets, or bullet points where appropriate.
+3. Be friendly, accurate, and concise without unnecessary fluff.
+4. If asked to give quiz questions, flashcards, or practice problems, provide them enthusiastically.`;
+
+  const conversationHistory = (messages || []).slice(-10).map((m) => ({
+    role: m.role as 'user' | 'assistant',
+    content: m.content
+  }));
+
+  for (let idx = 0; idx < modelQueue.length; idx++) {
+    const currentModel = modelQueue[idx];
+    try {
+      const response = await groq.chat.completions.create({
+        model: currentModel,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          ...conversationHistory
+        ],
+        temperature: 0.3
+      });
+      const reply = response.choices[0]?.message?.content || '';
+      if (reply.trim()) return reply.trim();
+    } catch (err: any) {
+      console.warn(`[Topic Chat] Model ${currentModel} failed: ${err.message}. Trying next fallback...`);
+    }
+  }
+
+  throw new Error('AI Chat assistant is currently unavailable. Please check your network or try again in a moment.');
+}
+
 

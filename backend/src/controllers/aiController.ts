@@ -10,7 +10,8 @@ import {
   generateChecklistWithGroq,
   checkUserRateLimit,
   smartSearchWithGroq,
-  generateNotesWithGroq
+  generateNotesWithGroq,
+  chatAboutTopicWithGroq
 } from '../services/aiService';
 import {
   fullSubjectImportSchema,
@@ -426,6 +427,72 @@ export const smartAISearch = async (req: AuthenticatedRequest, res: Response): P
     res.status(500).json({
       success: false,
       message: err.message || 'Smart search failed'
+    });
+  }
+};
+
+export const chatAboutTopic = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const userId = req.user?.userId;
+  const { topicId, messages } = req.body;
+
+  if (!topicId || !Types.ObjectId.isValid(topicId)) {
+    res.status(400).json({ success: false, message: 'Valid topicId is required' });
+    return;
+  }
+
+  if (!Array.isArray(messages) || messages.length === 0) {
+    res.status(400).json({ success: false, message: 'Messages array is required' });
+    return;
+  }
+
+  const rateLimitStatus = checkUserRateLimit(userId || '');
+  if (!rateLimitStatus.allowed) {
+    res.status(429).json({
+      success: false,
+      message: `Too many requests. Please wait a moment and try again.`,
+      resetInSeconds: rateLimitStatus.resetInSec
+    });
+    return;
+  }
+
+  try {
+    const topic = await Topic.findOne({ _id: topicId, ownerId: userId })
+      .populate('subjectId', 'name color')
+      .populate('unitId', 'name');
+
+    if (!topic) {
+      res.status(404).json({ success: false, message: 'Topic not found or access denied' });
+      return;
+    }
+
+    const [note, materials] = await Promise.all([
+      Note.findOne({ topicId: topic._id, ownerId: userId }),
+      Material.find({ topicId: topic._id, ownerId: userId }).select('title type url')
+    ]);
+
+    const subjectName = (topic.subjectId as any)?.name || '';
+    const unitName = (topic.unitId as any)?.name || '';
+    const materialsList = materials.map((m) => `${m.title} (${m.type})`);
+
+    const aiReply = await chatAboutTopicWithGroq({
+      topicTitle: topic.title,
+      topicDescription: topic.description,
+      subjectName,
+      unitName,
+      notesContent: note?.content || '',
+      materialsList,
+      messages
+    });
+
+    res.status(200).json({
+      success: true,
+      reply: aiReply
+    });
+  } catch (err: any) {
+    console.error('chatAboutTopic failed:', err);
+    res.status(500).json({
+      success: false,
+      message: err.message || 'AI chat failed'
     });
   }
 };

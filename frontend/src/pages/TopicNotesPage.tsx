@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import LinkExtension from '@tiptap/extension-link';
+import ImageExtension from '@tiptap/extension-image';
 import {
   ArrowLeft,
   Bold,
@@ -16,7 +17,8 @@ import {
   Check,
   Trash2,
   Sparkles,
-  BookOpen
+  BookOpen,
+  ImageIcon
 } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
@@ -43,6 +45,10 @@ export const TopicNotesPage: React.FC = () => {
       LinkExtension.configure({
         openOnClick: true,
         autolink: true
+      }),
+      ImageExtension.configure({
+        allowBase64: true,
+        inline: true
       })
     ],
     content: '',
@@ -281,6 +287,20 @@ export const TopicNotesPage: React.FC = () => {
               title="Code Block"
             >
               <Code className="w-4 h-4" />
+            </button>
+            <div className="w-[1px] h-4 bg-slate-300 dark:bg-slate-700 mx-1" />
+            <button
+              type="button"
+              onClick={() => {
+                const url = window.prompt('Enter image URL:');
+                if (url && url.trim()) {
+                  editor.chain().focus().setImage({ src: url.trim() }).run();
+                }
+              }}
+              className="p-2 rounded-lg hover:bg-white dark:hover:bg-slate-700 transition text-slate-600 dark:text-slate-300"
+              title="Insert Image by URL"
+            >
+              <ImageIcon className="w-4 h-4" />
             </button>
           </div>
         )}
