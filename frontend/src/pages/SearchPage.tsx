@@ -169,7 +169,7 @@ export const SearchPage: React.FC = () => {
     <div className="space-y-6 animate-in fade-in pb-12">
       <div>
         <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
-          Global Search & Filters
+          AI Search & Filters
         </h1>
         <p className="text-xs text-slate-500">
           Search across all subjects, units, checklist topics, study documents and revision notes
@@ -195,7 +195,7 @@ export const SearchPage: React.FC = () => {
             className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-500/20 transition shrink-0"
           >
             <SearchIcon className="w-4 h-4" />
-            <span>Search</span>
+            <span>AI Search</span>
           </button>
         </div>
 
