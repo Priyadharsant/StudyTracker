@@ -142,6 +142,28 @@ export const SearchPage: React.FC = () => {
     executeSearch(query, selectedSubjectId, statusFilter);
   };
 
+  // Helper to render bold text or simple markdown formatting cleanly without raw stars
+  const formatAiText = (text: string) => {
+    return text.split('\n').map((line, lineIdx) => {
+      // Split bold markers **word**
+      const parts = line.split(/(\*\*.*?\*\*)/g);
+      return (
+        <p key={lineIdx} className={line.trim() === '' ? 'h-2' : 'min-h-[1.25rem]'}>
+          {parts.map((part, partIdx) => {
+            if (part.startsWith('**') && part.endsWith('**')) {
+              return (
+                <strong key={partIdx} className="font-bold text-slate-900 dark:text-white">
+                  {part.slice(2, -2)}
+                </strong>
+              );
+            }
+            return <React.Fragment key={partIdx}>{part}</React.Fragment>;
+          })}
+        </p>
+      );
+    });
+  };
+
   const copyAiKeyPoints = () => {
     if (!aiInsight) return;
     const textToCopy = [
@@ -307,8 +329,8 @@ export const SearchPage: React.FC = () => {
 
           {/* AI Response Body */}
           {aiInsight.summary && (
-            <div className="text-xs sm:text-sm text-slate-800 dark:text-slate-200 leading-relaxed whitespace-pre-line font-normal">
-              {aiInsight.summary}
+            <div className="text-xs sm:text-sm text-slate-800 dark:text-slate-200 leading-relaxed font-normal space-y-1">
+              {formatAiText(aiInsight.summary)}
             </div>
           )}
 
