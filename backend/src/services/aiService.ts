@@ -608,7 +608,14 @@ TUTOR INSTRUCTIONS:
 1. Clarify doubts directly and thoroughly with clear explanations, analogies, step-by-step breakdowns, code snippets, or bullet points.
 2. If the user asks for practice questions, quiz problems, formula cheat-sheets, or flashcards, provide them enthusiastically.
 3. Be supportive, concise, and focused on helping the student succeed in their exams and concepts.
-4. If the user's question relates to their selected subject or notes, ground your answer in that context.`;
+4. If the user's question relates to their selected subject or notes, ground your answer in that context.
+5. FORMATTING EXCELLENCE (CRITICAL):
+   - Use standard GitHub Flavored Markdown.
+   - Use **bold** for key terms and concepts.
+   - Use *italic* for secondary emphasis or technical nomenclature.
+   - Use structured bullet points (- item) and numbered lists (1. item) with proper spacing.
+   - Format equations and formulas cleanly using inline code (\`E = mc^2\`) or code blocks.
+   - Do NOT output broken or unescaped symbols. Keep responses aesthetically pleasing and easy to read.`;
 
   const conversationHistory = (messages || []).slice(-12).map((m) => ({
     role: m.role as 'user' | 'assistant',

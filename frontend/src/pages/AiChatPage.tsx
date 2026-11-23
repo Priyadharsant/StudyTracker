@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import {
   Sparkles,
   Send,
@@ -172,25 +174,16 @@ export const AiChatPage: React.FC = () => {
     { label: 'Cheat-sheet', text: 'Provide a concise formula and key takeaways cheat-sheet for rapid revision.' }
   ];
 
-  // Helper to format bold **text** and preserve line breaks
-  const renderMessageContent = (text: string) => {
-    return text.split('\n').map((line, lIdx) => {
-      const parts = line.split(/(\*\*.*?\*\*)/g);
-      return (
-        <p key={lIdx} className={line.trim() === '' ? 'h-2' : 'min-h-[1.25rem]'}>
-          {parts.map((part, pIdx) => {
-            if (part.startsWith('**') && part.endsWith('**')) {
-              return (
-                <strong key={pIdx} className="font-bold text-slate-900 dark:text-white">
-                  {part.slice(2, -2)}
-                </strong>
-              );
-            }
-            return <React.Fragment key={pIdx}>{part}</React.Fragment>;
-          })}
-        </p>
-      );
-    });
+  // Helper to format markdown cleanly with bold, italic, lists, and code blocks
+  const renderMessageContent = (text: string, isUser: boolean) => {
+    if (isUser) {
+      return <div className="whitespace-pre-wrap">{text}</div>;
+    }
+    return (
+      <div className="prose prose-sm dark:prose-invert max-w-none text-slate-800 dark:text-slate-200 leading-relaxed [&>p]:mb-2.5 [&>p:last-child]:mb-0 [&>ul]:list-disc [&>ul]:pl-5 [&>ol]:list-decimal [&>ol]:pl-5 [&>li]:mb-1 [&>strong]:text-slate-900 dark:[&>strong]:text-white [&>strong]:font-bold [&>em]:italic [&>code]:bg-slate-200/70 dark:[&>code]:bg-slate-700/60 [&>code]:px-1.5 [&>code]:py-0.5 [&>code]:rounded [&>code]:text-xs [&>pre]:bg-slate-900 [&>pre]:text-slate-100 [&>pre]:p-3 [&>pre]:rounded-xl [&>pre]:my-2 [&>h1]:text-base [&>h2]:text-sm [&>h3]:text-sm [&>h1]:font-bold [&>h2]:font-bold [&>h3]:font-bold">
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+      </div>
+    );
   };
 
   const selectedSubject = subjects.find(s => s._id === selectedSubjectId);
@@ -295,7 +288,7 @@ export const AiChatPage: React.FC = () => {
                   {isUser ? (
                     <div className="whitespace-pre-wrap">{msg.content}</div>
                   ) : (
-                    renderMessageContent(msg.content)
+                    renderMessageContent(msg.content, isUser)
                   )}
                 </div>
                 <span

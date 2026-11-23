@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import {
   MessageSquare,
   Send,
@@ -219,7 +221,13 @@ export const AiTopicChatModal: React.FC<AiTopicChatModalProps> = ({
                       : 'bg-slate-100 dark:bg-slate-800/80 text-slate-800 dark:text-slate-200 border border-slate-200/60 dark:border-slate-700/60'
                   }`}
                 >
-                  <div className="whitespace-pre-wrap">{msg.content}</div>
+                  {isUser ? (
+                    <div className="whitespace-pre-wrap">{msg.content}</div>
+                  ) : (
+                    <div className="prose prose-xs sm:prose-sm dark:prose-invert max-w-none text-slate-800 dark:text-slate-200 leading-relaxed [&>p]:mb-2 [&>p:last-child]:mb-0 [&>ul]:list-disc [&>ul]:pl-4 [&>ol]:list-decimal [&>ol]:pl-4 [&>li]:mb-1 [&>strong]:text-slate-900 dark:[&>strong]:text-white [&>code]:bg-slate-200/70 dark:[&>code]:bg-slate-700/60 [&>code]:px-1 [&>code]:py-0.5 [&>code]:rounded [&>code]:text-[11px]">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                    </div>
+                  )}
                   <span
                     className={`text-[10px] block mt-1.5 ${
                       isUser ? 'text-blue-200 text-right' : 'text-slate-400'
