@@ -355,12 +355,42 @@ export const smartAISearch = async (req: AuthenticatedRequest, res: Response): P
       topicFilter.subjectId = subjectId;
     }
 
-    // Retrieve topics, notes, subjects for search
-    const [topics, subjects, notes] = await Promise.all([
-      Topic.find(topicFilter).populate('subjectId', 'name color').populate('unitId', 'name').limit(40),
-      Subject.find({ ownerId: userId }).limit(10),
-      Note.find({ ownerId: userId }).populate('subjectId', 'name color').populate('topicId', 'title').limit(20)
+    // Extract meaningful search tokens (ignoring conversational filler words like 'i', 'want', 'only', 'subtitles', 'about', etc.)
+    const stopWords = new Set(['i', 'me', 'my', 'we', 'our', 'want', 'need', 'give', 'tell', 'show', 'find', 'search', 'for', 'about', 'only', 'the', 'a', 'an', 'in', 'on', 'at', 'to', 'from', 'is', 'are', 'was', 'were', 'and', 'or', 'of', 'with', 'what', 'how', 'why', 'can', 'you', 'please', 'notes', 'subtitles', 'subtopics', 'topics', 'unit', 'units', 'chapter', 'chapters', 'all']);
+    const cleanTokens = query
+      .trim()
+      .split(/s+/)
+      .map(t => t.replace(/[^a-zA-Z0-9]/g, '').toLowerCase())
+      .filter(t => t.length > 1 && !stopWords.has(t));
+
+    let regexQuery: any = null;
+    if (cleanTokens.length > 0) {
+      regexQuery = new RegExp(cleanTokens.join('|'), 'i');
+    } else if (query.trim().length > 1) {
+      regexQuery = new RegExp(query.trim().replace(/[^a-zA-Z0-9]/g, '.*'), 'i');
+    }
+
+    // Prioritize topics that match query tokens, then general recent topics
+    let topicQueryFilter: any = { ...topicFilter };
+    if (regexQuery) {
+      topicQueryFilter['$or'] = [{ title: regexQuery }, { description: regexQuery }];
+    }
+
+    // Retrieve matching topics, plus fallback recent topics, subjects, notes
+    const [matchedQueryTopics, fallbackTopics, subjects, notes] = await Promise.all([
+      regexQuery ? Topic.find(topicQueryFilter).populate('subjectId', 'name color').populate('unitId', 'name').limit(40) : Promise.resolve([]),
+      Topic.find(topicFilter).populate('subjectId', 'name color').populate('unitId', 'name').sort({ updatedAt: -1 }).limit(30),
+      Subject.find({ ownerId: userId }).limit(15),
+      Note.find({ ownerId: userId }).populate('subjectId', 'name color').populate('topicId', 'title').limit(25)
     ]);
+
+    // Deduplicate topics, putting direct query matches first
+    const topicMap = new Map<string, any>();
+    matchedQueryTopics.forEach((t: any) => topicMap.set(t._id.toString(), t));
+    fallbackTopics.forEach((t: any) => {
+      if (!topicMap.has(t._id.toString())) topicMap.set(t._id.toString(), t);
+    });
+    const topics = Array.from(topicMap.values()).slice(0, 40);
 
     const items: any[] = [];
 
