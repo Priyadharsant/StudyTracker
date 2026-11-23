@@ -10,6 +10,7 @@ import { SubjectsPage } from './pages/SubjectsPage';
 import { SubjectDetailPage } from './pages/SubjectDetailPage';
 import { NotesPage } from './pages/NotesPage';
 import { SearchPage } from './pages/SearchPage';
+import { AiChatPage } from './pages/AiChatPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { SharedSubjectPage } from './pages/SharedSubjectPage';
 import { TopicNotesPage } from './pages/TopicNotesPage';
@@ -112,6 +113,14 @@ export const App: React.FC = () => {
                 element={
                   <ProtectedRoute>
                     <TopicNotesPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/chat"
+                element={
+                  <ProtectedRoute>
+                    <AiChatPage />
                   </ProtectedRoute>
                 }
               />

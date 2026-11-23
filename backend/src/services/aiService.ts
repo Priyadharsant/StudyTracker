@@ -566,17 +566,18 @@ ${JSON.stringify(contextItems, null, 2)}`;
 }
 
 export interface TopicChatParams {
-  topicTitle: string;
+  topicTitle?: string;
   topicDescription?: string;
   subjectName?: string;
   unitName?: string;
   notesContent?: string;
   materialsList?: string[];
+  syllabusOverview?: string;
   messages: Array<{ role: 'user' | 'assistant'; content: string }>;
 }
 
 export async function chatAboutTopicWithGroq(params: TopicChatParams): Promise<string> {
-  const { topicTitle, topicDescription, subjectName, unitName, notesContent, materialsList, messages } = params;
+  const { topicTitle, topicDescription, subjectName, unitName, notesContent, materialsList, syllabusOverview, messages } = params;
 
   const groq = getGroqClient();
   const primaryModel = config.groqModel || 'openai/gpt-oss-120b';
@@ -589,25 +590,27 @@ export async function chatAboutTopicWithGroq(params: TopicChatParams): Promise<s
     .replace(/<[^>]*>/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
-    .slice(0, 2500);
+    .slice(0, 3000);
 
-  const systemPrompt = `You are an expert, encouraging 1-on-1 academic tutor on StudyTrack.
-You are helping a student master this topic: "${topicTitle}".
+  const systemPrompt = `You are an expert, encouraging 1-on-1 academic AI tutor on StudyTrack.
+Your mission is to clarify academic doubts, explain concepts clearly, provide study techniques, formulas, step-by-step problem solving, and exam revision.
 
-CONTEXT:
-${subjectName ? `Subject: ${subjectName}` : ''}
+STUDY CONTEXT:
+${subjectName ? `Subject: ${subjectName}` : 'Scope: General Academic & Engineering Tutor'}
 ${unitName ? `Unit / Chapter: ${unitName}` : ''}
-${topicDescription ? `Topic Description: ${topicDescription}` : ''}
-${cleanNotes ? `Student's Revision Notes: ${cleanNotes}` : ''}
+${topicTitle ? `Topic: ${topicTitle}` : ''}
+${topicDescription ? `Topic Details: ${topicDescription}` : ''}
+${syllabusOverview ? `Subject Syllabus / Units: ${syllabusOverview}` : ''}
+${cleanNotes ? `Relevant Revision Notes: ${cleanNotes}` : ''}
 ${materialsList && materialsList.length > 0 ? `Attached Materials: ${materialsList.join(', ')}` : ''}
 
-INSTRUCTIONS:
-1. Clarify any academic doubts, formulas, explanations, exam tips, and problem-solving steps.
-2. Formulate answers clearly with step-by-step breakdowns, code snippets, or bullet points where appropriate.
-3. Be friendly, accurate, and concise without unnecessary fluff.
-4. If asked to give quiz questions, flashcards, or practice problems, provide them enthusiastically.`;
+TUTOR INSTRUCTIONS:
+1. Clarify doubts directly and thoroughly with clear explanations, analogies, step-by-step breakdowns, code snippets, or bullet points.
+2. If the user asks for practice questions, quiz problems, formula cheat-sheets, or flashcards, provide them enthusiastically.
+3. Be supportive, concise, and focused on helping the student succeed in their exams and concepts.
+4. If the user's question relates to their selected subject or notes, ground your answer in that context.`;
 
-  const conversationHistory = (messages || []).slice(-10).map((m) => ({
+  const conversationHistory = (messages || []).slice(-12).map((m) => ({
     role: m.role as 'user' | 'assistant',
     content: m.content
   }));
@@ -626,11 +629,11 @@ INSTRUCTIONS:
       const reply = response.choices[0]?.message?.content || '';
       if (reply.trim()) return reply.trim();
     } catch (err: any) {
-      console.warn(`[Topic Chat] Model ${currentModel} failed: ${err.message}. Trying next fallback...`);
+      console.warn(`[AI Tutor] Model ${currentModel} failed: ${err.message}. Trying next fallback...`);
     }
   }
 
-  throw new Error('AI Chat assistant is currently unavailable. Please check your network or try again in a moment.');
+  throw new Error('AI Tutor is currently unavailable. Please check your network or try again in a moment.');
 }
 
 

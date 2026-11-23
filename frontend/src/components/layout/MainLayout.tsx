@@ -4,6 +4,7 @@ import {
   BookOpen,
   FileText,
   Search,
+  Sparkles,
   Settings,
   Sun,
   Moon,
@@ -26,6 +27,7 @@ export const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }
     { label: 'Dashboard', path: '/', icon: LayoutDashboard },
     { label: 'My Subjects', path: '/subjects', icon: BookOpen },
     { label: 'Revision Notes', path: '/notes', icon: FileText },
+    { label: 'AI Tutor', path: '/chat', icon: Sparkles },
     { label: 'AI Search', path: '/search', icon: Search },
     { label: 'Settings', path: '/settings', icon: Settings }
   ];

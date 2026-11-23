@@ -463,12 +463,7 @@ export const smartAISearch = async (req: AuthenticatedRequest, res: Response): P
 
 export const chatAboutTopic = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const userId = req.user?.userId;
-  const { topicId, messages } = req.body;
-
-  if (!topicId || !Types.ObjectId.isValid(topicId)) {
-    res.status(400).json({ success: false, message: 'Valid topicId is required' });
-    return;
-  }
+  const { topicId, subjectId, messages } = req.body;
 
   if (!Array.isArray(messages) || messages.length === 0) {
     res.status(400).json({ success: false, message: 'Messages array is required' });
@@ -486,31 +481,60 @@ export const chatAboutTopic = async (req: AuthenticatedRequest, res: Response): 
   }
 
   try {
-    const topic = await Topic.findOne({ _id: topicId, ownerId: userId })
-      .populate('subjectId', 'name color')
-      .populate('unitId', 'name');
+    let topicTitle: string | undefined;
+    let topicDescription: string | undefined;
+    let subjectName: string | undefined;
+    let unitName: string | undefined;
+    let notesContent: string | undefined;
+    let materialsList: string[] = [];
+    let syllabusOverview: string | undefined;
 
-    if (!topic) {
-      res.status(404).json({ success: false, message: 'Topic not found or access denied' });
-      return;
+    // 1. Topic-scoped doubt
+    if (topicId && Types.ObjectId.isValid(topicId)) {
+      const topic = await Topic.findOne({ _id: topicId, ownerId: userId })
+        .populate('subjectId', 'name color')
+        .populate('unitId', 'name');
+
+      if (topic) {
+        topicTitle = topic.title;
+        topicDescription = topic.description;
+        subjectName = (topic.subjectId as any)?.name || '';
+        unitName = (topic.unitId as any)?.name || '';
+
+        const [note, materials] = await Promise.all([
+          Note.findOne({ topicId: topic._id, ownerId: userId }),
+          Material.find({ topicId: topic._id, ownerId: userId }).select('title type url')
+        ]);
+        if (note?.content) notesContent = note.content;
+        materialsList = materials.map((m) => `${m.title} (${m.type})`);
+      }
     }
 
-    const [note, materials] = await Promise.all([
-      Note.findOne({ topicId: topic._id, ownerId: userId }),
-      Material.find({ topicId: topic._id, ownerId: userId }).select('title type url')
-    ]);
+    // 2. Subject-scoped doubt
+    if (!topicTitle && subjectId && Types.ObjectId.isValid(subjectId)) {
+      const [subject, units, recentNotes] = await Promise.all([
+        Subject.findOne({ _id: subjectId, ownerId: userId }),
+        Unit.find({ subjectId, ownerId: userId }).sort({ order: 1 }),
+        Note.find({ subjectId, ownerId: userId }).populate('topicId', 'title').limit(5)
+      ]);
 
-    const subjectName = (topic.subjectId as any)?.name || '';
-    const unitName = (topic.unitId as any)?.name || '';
-    const materialsList = materials.map((m) => `${m.title} (${m.type})`);
+      if (subject) {
+        subjectName = subject.name;
+        syllabusOverview = units.map(u => u.name).join('; ');
+        if (recentNotes.length > 0) {
+          notesContent = recentNotes.map(n => `${(n.topicId as any)?.title || 'Note'}: ${n.content?.slice(0, 300) || ''}`).join('\n');
+        }
+      }
+    }
 
     const aiReply = await chatAboutTopicWithGroq({
-      topicTitle: topic.title,
-      topicDescription: topic.description,
+      topicTitle,
+      topicDescription,
       subjectName,
       unitName,
-      notesContent: note?.content || '',
+      notesContent,
       materialsList,
+      syllabusOverview,
       messages
     });
 
@@ -522,7 +546,7 @@ export const chatAboutTopic = async (req: AuthenticatedRequest, res: Response): 
     console.error('chatAboutTopic failed:', err);
     res.status(500).json({
       success: false,
-      message: err.message || 'AI chat failed'
+      message: err.message || 'AI tutor chat failed'
     });
   }
 };
