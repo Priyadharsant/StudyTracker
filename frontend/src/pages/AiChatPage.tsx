@@ -15,6 +15,8 @@ import {
 import api from '../services/api';
 import { Subject } from '../types';
 import { useToast } from '../contexts/ToastContext';
+import { CustomSelect } from '../components/common/CustomSelect';
+import { ConfirmDialog } from '../components/common/ConfirmDialog';
 
 interface ChatMessage {
   id: string;
@@ -30,6 +32,7 @@ export const AiChatPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>('all');
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Load user subjects for scope filter
@@ -142,17 +145,16 @@ export const AiChatPage: React.FC = () => {
   };
 
   const handleClearChat = () => {
-    if (window.confirm('Clear your conversation history with AI Tutor?')) {
-      const reset: ChatMessage[] = [
-        {
-          id: 'welcome',
-          role: 'assistant',
-          content: `Chat cleared. Ask me any study doubt or concept whenever you are ready!`,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        }
-      ];
-      saveMessages(reset);
-    }
+    const reset: ChatMessage[] = [
+      {
+        id: 'welcome',
+        role: 'assistant',
+        content: `Chat cleared. Ask me any study doubt or concept whenever you are ready!`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      }
+    ];
+    saveMessages(reset);
+    setClearConfirmOpen(false);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -218,26 +220,23 @@ export const AiChatPage: React.FC = () => {
 
         {/* Subject Scope Selector & Clear Chat */}
         <div className="flex items-center gap-2">
-          <div className="relative">
-            <select
-              value={selectedSubjectId}
-              onChange={(e) => setSelectedSubjectId(e.target.value)}
-              className="appearance-none pl-8 pr-8 py-1.5 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:border-purple-400 focus:ring-2 focus:ring-purple-500 outline-hidden transition cursor-pointer shadow-2xs"
-            >
-              <option value="all">🌐 All Subjects (General Tutor)</option>
-              {subjects.map((sub) => (
-                <option key={sub._id} value={sub._id}>
-                  📚 {sub.name}
-                </option>
-              ))}
-            </select>
-            <BookOpen className="w-3.5 h-3.5 text-purple-600 absolute left-2.5 top-2.5 pointer-events-none" />
-            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
-          </div>
+          <CustomSelect
+            value={selectedSubjectId}
+            onChange={(val) => setSelectedSubjectId(val)}
+            icon={<BookOpen className="w-3.5 h-3.5 text-purple-600" />}
+            options={[
+              { value: 'all', label: 'All Subjects (General Tutor)' },
+              ...subjects.map((sub) => ({
+                value: sub._id,
+                label: sub.name,
+                color: sub.color
+              }))
+            ]}
+          />
 
           <button
             type="button"
-            onClick={handleClearChat}
+            onClick={() => setClearConfirmOpen(true)}
             className="p-2 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/30 transition"
             title="Clear conversation"
           >
@@ -367,6 +366,15 @@ export const AiChatPage: React.FC = () => {
           </button>
         </div>
       </div>
+      <ConfirmDialog
+        isOpen={clearConfirmOpen}
+        title="Clear Chat History?"
+        message="Are you sure you want to clear your conversation with the AI Study Tutor? This action cannot be undone."
+        confirmLabel="Clear Chat"
+        danger
+        onConfirm={handleClearChat}
+        onCancel={() => setClearConfirmOpen(false)}
+      />
     </div>
   );
 };

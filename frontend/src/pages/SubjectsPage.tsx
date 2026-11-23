@@ -117,9 +117,11 @@ export const SubjectsPage: React.FC = () => {
     }
   };
 
+  const searchLower = search.toLowerCase().trim();
   const filtered = subjects.filter((s) =>
-    s.name.toLowerCase().includes(search.toLowerCase()) ||
-    (s.description || '').toLowerCase().includes(search.toLowerCase())
+    s.name.toLowerCase().includes(searchLower) ||
+    (s.description || '').toLowerCase().includes(searchLower) ||
+    (s.topicTitles && s.topicTitles.some((t) => t.toLowerCase().includes(searchLower)))
   );
 
   return (
@@ -139,7 +141,7 @@ export const SubjectsPage: React.FC = () => {
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-2.5" />
             <input
               type="text"
-              placeholder="Search subjects..."
+              placeholder="Search subjects or topics..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-10 pr-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-hidden focus:ring-2 focus:ring-blue-500"

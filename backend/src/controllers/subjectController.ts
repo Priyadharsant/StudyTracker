@@ -16,9 +16,9 @@ export const getSubjects = async (req: AuthenticatedRequest, res: Response): Pro
   const subjectIds = subjects.map(s => s._id);
   const topics = await Topic.find({ ownerId: userId, subjectId: { $in: subjectIds } });
 
-  const statsMap: Record<string, { totalTopics: number; completedTopics: number }> = {};
+  const statsMap: Record<string, { totalTopics: number; completedTopics: number; topicTitles: string[] }> = {};
   for (const s of subjects) {
-    statsMap[s._id.toString()] = { totalTopics: 0, completedTopics: 0 };
+    statsMap[s._id.toString()] = { totalTopics: 0, completedTopics: 0, topicTitles: [] };
   }
 
   for (const t of topics) {
@@ -26,6 +26,7 @@ export const getSubjects = async (req: AuthenticatedRequest, res: Response): Pro
     if (statsMap[sId]) {
       statsMap[sId].totalTopics += 1;
       if (t.completed) statsMap[sId].completedTopics += 1;
+      if (t.title) statsMap[sId].topicTitles.push(t.title);
     }
   }
 
@@ -33,6 +34,7 @@ export const getSubjects = async (req: AuthenticatedRequest, res: Response): Pro
     ...sub.toObject(),
     totalTopics: statsMap[sub._id.toString()]?.totalTopics || 0,
     completedTopics: statsMap[sub._id.toString()]?.completedTopics || 0,
+    topicTitles: statsMap[sub._id.toString()]?.topicTitles || [],
     progressPercentage:
       (statsMap[sub._id.toString()]?.totalTopics || 0) > 0
         ? Math.round(

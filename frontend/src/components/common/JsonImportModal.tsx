@@ -18,6 +18,7 @@ import {
 import api from '../../services/api';
 import { Subject } from '../../types';
 import { useToast } from '../../contexts/ToastContext';
+import { CustomSelect } from './CustomSelect';
 
 interface JsonImportModalProps {
   isOpen: boolean;
@@ -337,17 +338,15 @@ export const JsonImportModal: React.FC<JsonImportModalProps> = ({
                     Select which existing subject this unit should be added to:
                   </p>
                 </div>
-                <select
+                <CustomSelect
                   value={selectedSubjectId}
-                  onChange={(e) => setSelectedSubjectId(e.target.value)}
-                  className="px-3.5 py-2 text-xs rounded-xl border border-purple-300 dark:border-purple-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-medium outline-hidden"
-                >
-                  {subjects.map((s) => (
-                    <option key={s._id} value={s._id}>
-                      {s.name}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(val: string) => setSelectedSubjectId(val)}
+                  options={subjects.map((s) => ({
+                    value: s._id,
+                    label: s.name,
+                    color: s.color
+                  }))}
+                />
               </div>
             )}
 

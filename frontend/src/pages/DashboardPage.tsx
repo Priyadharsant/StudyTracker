@@ -21,6 +21,7 @@ import { CreationChoiceModal } from '../components/common/CreationChoiceModal';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
+import { CustomSelect } from '../components/common/CustomSelect';
 
 export const DashboardPage: React.FC = () => {
   const { user } = useAuth();
@@ -144,9 +145,14 @@ export const DashboardPage: React.FC = () => {
     }
   };
 
-  // Sort and filter subject cards
+  // Sort and filter subject cards by subject name or topics
+  const searchFilterLower = searchFilter.toLowerCase().trim();
   const displayedSubjects = subjectCards
-    .filter((s) => s.name.toLowerCase().includes(searchFilter.toLowerCase()))
+    .filter((s) =>
+      s.name.toLowerCase().includes(searchFilterLower) ||
+      (s.description || '').toLowerCase().includes(searchFilterLower) ||
+      (s.topicTitles && s.topicTitles.some((t) => t.toLowerCase().includes(searchFilterLower)))
+    )
     .sort((a, b) => {
       if (sortBy === 'name') return a.name.localeCompare(b.name);
       if (sortBy === 'progress') return (b.progressPercentage || 0) - (a.progressPercentage || 0);
@@ -287,7 +293,7 @@ export const DashboardPage: React.FC = () => {
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
               <input
                 type="text"
-                placeholder="Search subjects..."
+                placeholder="Search subjects or topics..."
                 value={searchFilter}
                 onChange={(e) => setSearchFilter(e.target.value)}
                 className="pl-9 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-hidden focus:ring-1 focus:ring-blue-500"
@@ -295,15 +301,15 @@ export const DashboardPage: React.FC = () => {
             </div>
 
             {/* Sort Dropdown */}
-            <select
+            <CustomSelect
               value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as any)}
-              className="text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white px-3 py-1.5 outline-hidden"
-            >
-              <option value="updated">Recently Updated</option>
-              <option value="name">Subject Name</option>
-              <option value="progress">Highest Progress</option>
-            </select>
+              onChange={(val) => setSortBy(val as any)}
+              options={[
+                { value: 'updated', label: 'Recently Updated' },
+                { value: 'name', label: 'Subject Name' },
+                { value: 'progress', label: 'Highest Progress' }
+              ]}
+            />
 
             {/* Reset All Progress */}
             {stats && stats.completedTopics > 0 && (

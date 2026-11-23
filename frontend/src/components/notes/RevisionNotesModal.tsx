@@ -21,6 +21,7 @@ import {
 import api from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
 import { ConfirmDialog } from '../common/ConfirmDialog';
+import { PromptModal } from '../common/PromptModal';
 import { AiNoteGeneratorModal } from './AiNoteGeneratorModal';
 
 interface RevisionNotesModalProps {
@@ -45,6 +46,7 @@ export const RevisionNotesModal: React.FC<RevisionNotesModalProps> = ({
   const [lastSaved, setLastSaved] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [aiGeneratorOpen, setAiGeneratorOpen] = useState(false);
+  const [imagePromptOpen, setImagePromptOpen] = useState(false);
   const autoSaveTimerRef = useRef<any>(null);
 
   const editor = useEditor({
@@ -294,10 +296,7 @@ export const RevisionNotesModal: React.FC<RevisionNotesModalProps> = ({
               <button
                 type="button"
                 onClick={() => {
-                  const url = window.prompt('Enter image URL:');
-                  if (url && url.trim()) {
-                    editor.chain().focus().setImage({ src: url.trim() }).run();
-                  }
+                  setImagePromptOpen(true);
                 }}
                 className="p-1.5 rounded hover:bg-white dark:hover:bg-slate-700 transition text-slate-600 dark:text-slate-300"
                 title="Insert Image by URL"

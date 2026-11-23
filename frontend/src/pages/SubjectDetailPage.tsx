@@ -40,6 +40,7 @@ import { AiChecklistModal } from '../components/common/AiChecklistModal';
 import { CreationChoiceModal } from '../components/common/CreationChoiceModal';
 import { ShareSubjectModal } from '../components/subject/ShareSubjectModal';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
+import { CustomSelect } from '../components/common/CustomSelect';
 import { useToast } from '../contexts/ToastContext';
 
 export const SubjectDetailPage: React.FC = () => {
@@ -690,15 +691,17 @@ export const SubjectDetailPage: React.FC = () => {
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1">
                     Priority
                   </label>
-                  <select
+                  <CustomSelect
                     value={topicPriority}
-                    onChange={(e) => setTopicPriority(e.target.value as any)}
-                    className="w-full px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs outline-hidden"
-                  >
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                  </select>
+                    onChange={(val) => setTopicPriority(val as any)}
+                    className="w-full"
+                    size="md"
+                    options={[
+                      { value: 'low', label: 'Low Priority' },
+                      { value: 'medium', label: 'Medium Priority' },
+                      { value: 'high', label: 'High Priority' }
+                    ]}
+                  />
                 </div>
 
                 <div>

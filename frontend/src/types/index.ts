@@ -18,6 +18,7 @@ export interface Subject {
   totalTopics: number;
   completedTopics: number;
   progressPercentage: number;
+  topicTitles?: string[];
   createdAt: string;
   updatedAt: string;
 }

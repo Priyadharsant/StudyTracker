@@ -23,6 +23,7 @@ import {
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
+import { PromptModal } from '../components/common/PromptModal';
 import { AiNoteGeneratorModal } from '../components/notes/AiNoteGeneratorModal';
 
 export const TopicNotesPage: React.FC = () => {
@@ -36,6 +37,7 @@ export const TopicNotesPage: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [imagePromptOpen, setImagePromptOpen] = useState(false);
   const [aiGeneratorOpen, setAiGeneratorOpen] = useState(false);
   const autoSaveTimerRef = useRef<any>(null);
 
@@ -292,10 +294,7 @@ export const TopicNotesPage: React.FC = () => {
             <button
               type="button"
               onClick={() => {
-                const url = window.prompt('Enter image URL:');
-                if (url && url.trim()) {
-                  editor.chain().focus().setImage({ src: url.trim() }).run();
-                }
+                setImagePromptOpen(true);
               }}
               className="p-2 rounded-lg hover:bg-white dark:hover:bg-slate-700 transition text-slate-600 dark:text-slate-300"
               title="Insert Image by URL"

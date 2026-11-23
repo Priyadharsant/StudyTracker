@@ -22,6 +22,7 @@ import { Subject, Unit, Topic, Material, Note } from '../types';
 import { DocumentViewerModal } from '../components/common/DocumentViewerModal';
 import { RevisionNotesModal } from '../components/notes/RevisionNotesModal';
 import { useToast } from '../contexts/ToastContext';
+import { CustomSelect } from '../components/common/CustomSelect';
 
 export const SearchPage: React.FC = () => {
   const { toast } = useToast();
@@ -227,37 +228,35 @@ export const SearchPage: React.FC = () => {
           </div>
 
           {/* Status filter */}
-          <select
+          <CustomSelect
             value={statusFilter}
-            onChange={(e) => {
-              const val = e.target.value as any;
-              setStatusFilter(val);
+            onChange={(val: string) => {
+              setStatusFilter(val as any);
               executeSearch(query, selectedSubjectId, val);
             }}
-            className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs outline-hidden"
-          >
-            <option value="all">All Topics (Any status)</option>
-            <option value="pending">Pending Topics only</option>
-            <option value="completed">Completed Topics only</option>
-          </select>
+            options={[
+              { value: 'all', label: 'All Topics (Any status)' },
+              { value: 'pending', label: 'Pending Topics only' },
+              { value: 'completed', label: 'Completed Topics only' }
+            ]}
+          />
 
           {/* Subject filter */}
-          <select
+          <CustomSelect
             value={selectedSubjectId}
-            onChange={(e) => {
-              const val = e.target.value;
+            onChange={(val: string) => {
               setSelectedSubjectId(val);
               executeSearch(query, val, statusFilter);
             }}
-            className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs outline-hidden"
-          >
-            <option value="">All Subjects</option>
-            {subjectsList.map((s) => (
-              <option key={s._id} value={s._id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
+            options={[
+              { value: '', label: 'All Subjects' },
+              ...subjectsList.map((s) => ({
+                value: s._id,
+                label: s.name,
+                color: s.color
+              }))
+            ]}
+          />
 
           {(query || statusFilter !== 'all' || selectedSubjectId) && (
             <button
