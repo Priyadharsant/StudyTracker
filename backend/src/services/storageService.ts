@@ -1,8 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { google } from 'googleapis';
-import { Readable } from 'stream';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { config } from '../config/env';
 
 // Determine safe storage folder for local caching / fallback (serverless safe in os.tmpdir)
@@ -18,24 +17,22 @@ try {
   // Ignored in read-only environments
 }
 
-/**
- * Get authenticated Google Drive client using OAuth 2.0 refresh token
- */
-function getGoogleDriveClient() {
-  if (config.googleClientId && config.googleClientSecret && config.googleRefreshToken) {
-    const oauth2Client = new google.auth.OAuth2(
-      config.googleClientId,
-      config.googleClientSecret,
-      'http://localhost:5000/oauth2callback'
-    );
-    oauth2Client.setCredentials({ refresh_token: config.googleRefreshToken });
-    return google.drive({ version: 'v3', auth: oauth2Client });
+// Lazy-loaded Supabase client
+let supabaseClient: SupabaseClient | null = null;
+function getSupabaseClient(): SupabaseClient | null {
+  if (config.supabaseUrl && config.supabaseServiceRoleKey) {
+    if (!supabaseClient) {
+      supabaseClient = createClient(config.supabaseUrl, config.supabaseServiceRoleKey, {
+        auth: { persistSession: false }
+      });
+    }
+    return supabaseClient;
   }
   return null;
 }
 
 /**
- * Uploads a study document to Google Drive (with local fallback if unconfigured)
+ * Uploads a study document to Supabase Storage (with local disk fallback if unconfigured)
  */
 export const uploadFileToStorage = async (
   file: Express.Multer.File,
@@ -43,57 +40,38 @@ export const uploadFileToStorage = async (
 ): Promise<{ storagePath: string; url: string }> => {
   const fileExt = path.extname(file.originalname);
   const cleanOriginalName = path.basename(file.originalname, fileExt).replace(/[^a-zA-Z0-9_-]/g, '_');
-  const targetFileName = `${Date.now()}-${cleanOriginalName}${fileExt}`;
+  const targetFileName = `${userId}/${Date.now()}-${cleanOriginalName}${fileExt}`;
 
-  // 1. Primary: Upload to Google Drive
-  const drive = getGoogleDriveClient();
-  if (drive) {
+  // 1. Primary: Upload to Supabase Storage
+  const supabase = getSupabaseClient();
+  if (supabase) {
     try {
-      const media = {
-        mimeType: file.mimetype,
-        body: Readable.from(file.buffer)
-      };
+      const { data, error } = await supabase.storage
+        .from(config.supabaseBucket)
+        .upload(targetFileName, file.buffer, {
+          contentType: file.mimetype,
+          upsert: true
+        });
 
-      const requestBody: any = {
-        name: targetFileName,
-        description: `StudyTrack Document uploaded by user ${userId}`
-      };
-
-      if (config.googleDriveFolderId) {
-        requestBody.parents = [config.googleDriveFolderId];
+      if (error) {
+        console.error('[Supabase Storage] Upload error:', error.message);
+        throw error;
       }
 
-      const driveRes = await drive.files.create({
-        requestBody,
-        media,
-        fields: 'id, name, webViewLink, webContentLink'
-      });
+      // Get public URL directly (bucket is public, allowing seamless embed in iframe & img)
+      const { data: publicUrlData } = supabase.storage
+        .from(config.supabaseBucket)
+        .getPublicUrl(targetFileName);
 
-      const driveFileId = driveRes.data.id;
-      if (driveFileId) {
-        // Set permissions so anyone with the link can view the study document
-        try {
-          await drive.permissions.create({
-            fileId: driveFileId,
-            requestBody: {
-              role: 'reader',
-              type: 'anyone'
-            }
-          });
-        } catch (permErr: any) {
-          console.warn('[Google Drive] Permission setting warning:', permErr.message);
-        }
+      const publicUrl = publicUrlData.publicUrl;
+      console.log(`[Supabase Storage] File uploaded successfully: ${targetFileName}`);
 
-        const viewLink = driveRes.data.webViewLink || `https://drive.google.com/file/d/${driveFileId}/view?usp=sharing`;
-        console.log(`[Google Drive] File uploaded successfully: ${targetFileName} (ID: ${driveFileId})`);
-
-        return {
-          storagePath: `gdrive://${driveFileId}/${targetFileName}`,
-          url: viewLink
-        };
-      }
-    } catch (gdriveErr: any) {
-      console.error('[Google Drive] Upload failed, attempting local fallback:', gdriveErr.message || gdriveErr);
+      return {
+        storagePath: `supabase://${config.supabaseBucket}/${targetFileName}`,
+        url: publicUrl
+      };
+    } catch (supabaseErr: any) {
+      console.warn('[Supabase Storage] Failed, attempting local fallback:', supabaseErr.message || supabaseErr);
     }
   }
 
@@ -107,7 +85,8 @@ export const uploadFileToStorage = async (
     // Ignore
   }
 
-  const localFilePath = path.join(userDir, targetFileName);
+  const localFileName = `${Date.now()}-${cleanOriginalName}${fileExt}`;
+  const localFilePath = path.join(userDir, localFileName);
   try {
     fs.writeFileSync(localFilePath, file.buffer);
   } catch (err: any) {
@@ -115,28 +94,32 @@ export const uploadFileToStorage = async (
     throw new Error('Failed to save document to storage: ' + (err.message || 'Disk write error'));
   }
 
-  const relativeStoragePath = `local://${userId}/${targetFileName}`;
+  const relativeStoragePath = `local://${userId}/${localFileName}`;
   return {
     storagePath: relativeStoragePath,
-    url: `/api/materials/file-content/${userId}/${targetFileName}`
+    url: `/api/materials/file-content/${userId}/${localFileName}`
   };
 };
 
 /**
- * Deletes a file from Google Drive or local storage
+ * Deletes a file from Supabase Storage or local storage
  */
 export const deleteFileFromStorage = async (storagePath: string): Promise<void> => {
   if (!storagePath) return;
 
-  if (storagePath.startsWith('gdrive://')) {
-    const driveFileId = storagePath.replace('gdrive://', '').split('/')[0];
-    const drive = getGoogleDriveClient();
-    if (drive) {
+  if (storagePath.startsWith('supabase://')) {
+    const rawPath = storagePath.replace('supabase://', '');
+    const parts = rawPath.split('/');
+    const bucket = parts[0] || config.supabaseBucket;
+    const filePath = parts.slice(1).join('/');
+
+    const supabase = getSupabaseClient();
+    if (supabase) {
       try {
-        await drive.files.delete({ fileId: driveFileId });
-        console.log(`[Google Drive API] Deleted file: ${driveFileId}`);
+        await supabase.storage.from(bucket).remove([filePath]);
+        console.log(`[Supabase Storage] Deleted file: ${filePath}`);
       } catch (err: any) {
-        console.warn('[Google Drive API] Delete warning:', err.message);
+        console.warn('[Supabase Storage] Delete warning:', err.message);
       }
     }
     return;
@@ -156,31 +139,29 @@ export const deleteFileFromStorage = async (storagePath: string): Promise<void> 
 };
 
 /**
- * Retrieves direct viewing/download URL or stream from Google Drive or local storage
+ * Retrieves direct viewing/download URL from Supabase Storage or local storage
  */
 export const getFileAccessUrl = async (
   storagePath: string
 ): Promise<{ type: 'url' | 'local' | 'stream'; url?: string; localPath?: string; stream?: any }> => {
+  if (storagePath.startsWith('supabase://')) {
+    const rawPath = storagePath.replace('supabase://', '');
+    const parts = rawPath.split('/');
+    const bucket = parts[0] || config.supabaseBucket;
+    const filePath = parts.slice(1).join('/');
+
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      const { data } = supabase.storage.from(bucket).getPublicUrl(filePath);
+      return {
+        type: 'url',
+        url: data.publicUrl
+      };
+    }
+  }
+
   if (storagePath.startsWith('gdrive://')) {
     const driveFileId = storagePath.replace('gdrive://', '').split('/')[0];
-    const drive = getGoogleDriveClient();
-
-    if (drive) {
-      try {
-        const streamRes = await drive.files.get(
-          { fileId: driveFileId, alt: 'media' },
-          { responseType: 'stream' }
-        );
-        return {
-          type: 'stream',
-          stream: streamRes.data,
-          url: `https://drive.google.com/file/d/${driveFileId}/view?usp=sharing`
-        };
-      } catch (streamErr: any) {
-        console.warn('[Google Drive Stream] Stream retrieval error, falling back to direct URL:', streamErr.message);
-      }
-    }
-
     return {
       type: 'url',
       url: `https://drive.google.com/file/d/${driveFileId}/view?usp=sharing`

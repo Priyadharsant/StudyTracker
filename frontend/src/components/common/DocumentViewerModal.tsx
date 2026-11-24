@@ -23,12 +23,17 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
   const tokenQuery = token ? `?token=${encodeURIComponent(token)}` : '';
   const apiBase = import.meta.env.VITE_API_BASE_URL || '/api';
 
-  // Construct direct download and view URLs (using full API URL with token for media/download)
-  const fileUrl = material.type === 'URL' 
-    ? material.url 
-    : `${apiBase}/materials/${material._id}/view${tokenQuery}`;
+  // If material has a direct public storage URL (e.g. Supabase Storage CDN), use it directly for iframe/img
+  // Otherwise, fallback to the backend authenticated proxy route
+  const fileUrl = material.type === 'URL'
+    ? material.url
+    : (material.url && material.url.startsWith('http') && !material.url.includes('/api/materials/file-content/'))
+      ? material.url
+      : `${apiBase}/materials/${material._id}/view${tokenQuery}`;
   
-  const downloadUrl = `${apiBase}/materials/${material._id}/download${tokenQuery}`;
+  const downloadUrl = (material.url && material.url.startsWith('http') && !material.url.includes('/api/materials/file-content/'))
+    ? material.url
+    : `${apiBase}/materials/${material._id}/download${tokenQuery}`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/75 backdrop-blur-sm animate-in fade-in">
