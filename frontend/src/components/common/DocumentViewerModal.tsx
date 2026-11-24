@@ -19,12 +19,16 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
   const isPdf = material.mimeType === 'application/pdf' || /\.pdf$/i.test(material.originalFileName || '');
   const isTxt = material.mimeType?.startsWith('text/') || /\.txt$/i.test(material.originalFileName || '');
   
-  // Construct direct download and view URLs
+  const token = typeof window !== 'undefined' ? localStorage.getItem('studytrack_token') : null;
+  const tokenQuery = token ? `?token=${encodeURIComponent(token)}` : '';
+  const apiBase = import.meta.env.VITE_API_BASE_URL || '/api';
+
+  // Construct direct download and view URLs (using full API URL with token for media/download)
   const fileUrl = material.type === 'URL' 
     ? material.url 
-    : `/api/materials/${material._id}/view`;
+    : `${apiBase}/materials/${material._id}/view${tokenQuery}`;
   
-  const downloadUrl = `/api/materials/${material._id}/download`;
+  const downloadUrl = `${apiBase}/materials/${material._id}/download${tokenQuery}`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/75 backdrop-blur-sm animate-in fade-in">

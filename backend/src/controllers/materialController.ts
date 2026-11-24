@@ -297,6 +297,13 @@ export const viewMaterial = async (req: AuthenticatedRequest, res: Response): Pr
 
   const access = await getFileAccessUrl(material.storagePath);
 
+  if (access.type === 'stream' && access.stream) {
+    res.setHeader('Content-Type', material.mimeType || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(material.originalFileName || 'document')}"`);
+    access.stream.pipe(res);
+    return;
+  }
+
   if (access.type === 'local' && access.localPath) {
     if (!fs.existsSync(access.localPath)) {
       res.status(404).json({ success: false, message: 'File not found on server' });
@@ -309,13 +316,7 @@ export const viewMaterial = async (req: AuthenticatedRequest, res: Response): Pr
   }
 
   if (access.url) {
-    res.status(200).json({
-      success: true,
-      type: 'FILE',
-      signedUrl: access.url,
-      mimeType: material.mimeType,
-      fileName: material.originalFileName
-    });
+    res.redirect(access.url);
     return;
   }
 
@@ -348,6 +349,13 @@ export const downloadMaterial = async (req: AuthenticatedRequest, res: Response)
   }
 
   const access = await getFileAccessUrl(material.storagePath);
+
+  if (access.type === 'stream' && access.stream) {
+    res.setHeader('Content-Type', material.mimeType || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(material.originalFileName || 'download')}"`);
+    access.stream.pipe(res);
+    return;
+  }
 
   if (access.type === 'local' && access.localPath) {
     if (!fs.existsSync(access.localPath)) {

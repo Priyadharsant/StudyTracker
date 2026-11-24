@@ -362,7 +362,7 @@ export const StudyMaterialModal: React.FC<StudyMaterialModalProps> = ({
                                 <span>View</span>
                               </button>
                               <a
-                                href={`/api/materials/${m._id}/download`}
+                                href={`${import.meta.env.VITE_API_BASE_URL || '/api'}/materials/${m._id}/download?token=${encodeURIComponent(localStorage.getItem('studytrack_token') || '')}`}
                                 download
                                 className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg transition"
                                 title="Download Document"

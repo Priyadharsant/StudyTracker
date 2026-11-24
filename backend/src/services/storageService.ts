@@ -156,13 +156,31 @@ export const deleteFileFromStorage = async (storagePath: string): Promise<void> 
 };
 
 /**
- * Retrieves direct viewing/download URL from Google Drive or local storage
+ * Retrieves direct viewing/download URL or stream from Google Drive or local storage
  */
 export const getFileAccessUrl = async (
   storagePath: string
-): Promise<{ type: 'url' | 'local'; url?: string; localPath?: string }> => {
+): Promise<{ type: 'url' | 'local' | 'stream'; url?: string; localPath?: string; stream?: any }> => {
   if (storagePath.startsWith('gdrive://')) {
     const driveFileId = storagePath.replace('gdrive://', '').split('/')[0];
+    const drive = getGoogleDriveClient();
+
+    if (drive) {
+      try {
+        const streamRes = await drive.files.get(
+          { fileId: driveFileId, alt: 'media' },
+          { responseType: 'stream' }
+        );
+        return {
+          type: 'stream',
+          stream: streamRes.data,
+          url: `https://drive.google.com/file/d/${driveFileId}/view?usp=sharing`
+        };
+      } catch (streamErr: any) {
+        console.warn('[Google Drive Stream] Stream retrieval error, falling back to direct URL:', streamErr.message);
+      }
+    }
+
     return {
       type: 'url',
       url: `https://drive.google.com/file/d/${driveFileId}/view?usp=sharing`
