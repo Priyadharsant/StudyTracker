@@ -19,7 +19,23 @@ try {
 }
 
 /**
- * Uploads a study document using Google Drive API
+ * Get authenticated Google Drive client using OAuth 2.0 refresh token
+ */
+function getGoogleDriveClient() {
+  if (config.googleClientId && config.googleClientSecret && config.googleRefreshToken) {
+    const oauth2Client = new google.auth.OAuth2(
+      config.googleClientId,
+      config.googleClientSecret,
+      'http://localhost:5000/oauth2callback'
+    );
+    oauth2Client.setCredentials({ refresh_token: config.googleRefreshToken });
+    return google.drive({ version: 'v3', auth: oauth2Client });
+  }
+  return null;
+}
+
+/**
+ * Uploads a study document to Google Drive (with local fallback if unconfigured)
  */
 export const uploadFileToStorage = async (
   file: Express.Multer.File,
@@ -27,8 +43,61 @@ export const uploadFileToStorage = async (
 ): Promise<{ storagePath: string; url: string }> => {
   const fileExt = path.extname(file.originalname);
   const cleanOriginalName = path.basename(file.originalname, fileExt).replace(/[^a-zA-Z0-9_-]/g, '_');
+  const targetFileName = `${Date.now()}-${cleanOriginalName}${fileExt}`;
 
-  // Local storage (reliable, direct access for study documents)
+  // 1. Primary: Upload to Google Drive
+  const drive = getGoogleDriveClient();
+  if (drive) {
+    try {
+      const media = {
+        mimeType: file.mimetype,
+        body: Readable.from(file.buffer)
+      };
+
+      const requestBody: any = {
+        name: targetFileName,
+        description: `StudyTrack Document uploaded by user ${userId}`
+      };
+
+      if (config.googleDriveFolderId) {
+        requestBody.parents = [config.googleDriveFolderId];
+      }
+
+      const driveRes = await drive.files.create({
+        requestBody,
+        media,
+        fields: 'id, name, webViewLink, webContentLink'
+      });
+
+      const driveFileId = driveRes.data.id;
+      if (driveFileId) {
+        // Set permissions so anyone with the link can view the study document
+        try {
+          await drive.permissions.create({
+            fileId: driveFileId,
+            requestBody: {
+              role: 'reader',
+              type: 'anyone'
+            }
+          });
+        } catch (permErr: any) {
+          console.warn('[Google Drive] Permission setting warning:', permErr.message);
+        }
+
+        const viewLink = driveRes.data.webViewLink || `https://drive.google.com/file/d/${driveFileId}/view?usp=sharing`;
+        console.log(`[Google Drive] File uploaded successfully: ${targetFileName} (ID: ${driveFileId})`);
+
+        return {
+          storagePath: `gdrive://${driveFileId}/${targetFileName}`,
+          url: viewLink
+        };
+      }
+    } catch (gdriveErr: any) {
+      console.error('[Google Drive] Upload failed, attempting local fallback:', gdriveErr.message || gdriveErr);
+    }
+  }
+
+  // 2. Fallback: Local disk storage
   const userDir = path.join(LOCAL_UPLOADS_DIR, userId);
   try {
     if (!fs.existsSync(userDir)) {
@@ -38,8 +107,7 @@ export const uploadFileToStorage = async (
     // Ignore
   }
 
-  const localFileName = `${Date.now()}-${cleanOriginalName}${fileExt}`;
-  const localFilePath = path.join(userDir, localFileName);
+  const localFilePath = path.join(userDir, targetFileName);
   try {
     fs.writeFileSync(localFilePath, file.buffer);
   } catch (err: any) {
@@ -47,10 +115,10 @@ export const uploadFileToStorage = async (
     throw new Error('Failed to save document to storage: ' + (err.message || 'Disk write error'));
   }
 
-  const relativeStoragePath = `local://${userId}/${localFileName}`;
+  const relativeStoragePath = `local://${userId}/${targetFileName}`;
   return {
     storagePath: relativeStoragePath,
-    url: `/api/materials/file-content/${userId}/${localFileName}`
+    url: `/api/materials/file-content/${userId}/${targetFileName}`
   };
 };
 
@@ -62,9 +130,9 @@ export const deleteFileFromStorage = async (storagePath: string): Promise<void> 
 
   if (storagePath.startsWith('gdrive://')) {
     const driveFileId = storagePath.replace('gdrive://', '').split('/')[0];
-    if (config.googleApiKey) {
+    const drive = getGoogleDriveClient();
+    if (drive) {
       try {
-        const drive = google.drive({ version: 'v3', auth: config.googleApiKey });
         await drive.files.delete({ fileId: driveFileId });
         console.log(`[Google Drive API] Deleted file: ${driveFileId}`);
       } catch (err: any) {

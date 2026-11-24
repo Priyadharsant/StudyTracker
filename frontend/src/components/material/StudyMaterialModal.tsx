@@ -147,7 +147,7 @@ export const StudyMaterialModal: React.FC<StudyMaterialModalProps> = ({
     try {
       const uploadEndpoint = isUnitMode ? '/materials/upload-unit' : '/materials/upload';
       const res = await api.post(uploadEndpoint, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+        headers: { 'Content-Type': undefined },
         onUploadProgress: (progressEvent) => {
           if (progressEvent.total) {
             const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
